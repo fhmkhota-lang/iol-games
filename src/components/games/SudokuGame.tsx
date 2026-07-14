@@ -1,7 +1,8 @@
 import { useState, useEffect, useRef } from 'react';
 import { ArrowLeft, RotateCcw, CheckCircle2 } from 'lucide-react';
-import { getTodayString, dateToSeed } from '../../utils/seed';
+import { getTodayString } from '../../utils/seed';
 import { generateDailySudoku, checkSudoku, isCellValid } from '../../utils/sudoku';
+import { dateToSeed } from '../../utils/seed';
 import { useLocalStorage } from '../../hooks/useLocalStorage';
 import { useGameStore } from '../../hooks/useGameStore';
 import { ShareButton } from '../ui/ShareButton';
@@ -9,10 +10,12 @@ import { buildSudokuShare } from '../../utils/share';
 
 const TODAY = getTodayString();
 const SEED = dateToSeed(TODAY);
-const { puzzle: PUZZLE, solution: SOLUTION } = generateDailySudoku(SEED);
+const LOCAL = generateDailySudoku(SEED);
 
 interface SudokuSaved {
   date: string;
+  puzzle: number[][];
+  solution: number[][];
   grid: number[][];
   startMs: number;
   endMs: number | null;
@@ -20,14 +23,20 @@ interface SudokuSaved {
   mistakes: number;
 }
 
-const DEFAULT: SudokuSaved = {
-  date: TODAY,
-  grid: PUZZLE.map((r) => [...r]),
-  startMs: Date.now(),
-  endMs: null,
-  won: false,
-  mistakes: 0,
-};
+function makeDefault(puzzle: number[][], solution: number[][]): SudokuSaved {
+  return {
+    date: TODAY,
+    puzzle,
+    solution,
+    grid: puzzle.map((r) => [...r]),
+    startMs: Date.now(),
+    endMs: null,
+    won: false,
+    mistakes: 0,
+  };
+}
+
+const DEFAULT = makeDefault(LOCAL.puzzle, LOCAL.solution);
 
 export function SudokuGame({ onBack }: { onBack: () => void }) {
   const [saved, setSaved] = useLocalStorage<SudokuSaved>('iol_sudoku_state', DEFAULT);
@@ -37,6 +46,26 @@ export function SudokuGame({ onBack }: { onBack: () => void }) {
   const timerRef = useRef<ReturnType<typeof setInterval> | null>(null);
 
   const state = saved.date === TODAY ? saved : DEFAULT;
+  const PUZZLE = state.puzzle;
+  const SOLUTION = state.solution;
+
+  // Fetch fresh puzzle from dosuku API if starting fresh today
+  useEffect(() => {
+    if (state.date === TODAY && state.mistakes > 0) return;
+    if (state.date === TODAY && state.grid.some(row => row.some((v, ci) => v !== 0 && state.puzzle[state.grid.indexOf(row)][ci] === 0))) return;
+    fetch('https://sudoku-api.vercel.app/api/dosuku?query={newboard(limit:1){grids{value,solution,difficulty},results,message}}')
+      .then(r => r.json())
+      .then(data => {
+        const grid = data?.newboard?.grids?.[0];
+        if (!grid?.value || !grid?.solution) return;
+        const puzzle: number[][] = grid.value;
+        const solution: number[][] = grid.solution;
+        if (puzzle.length !== 9 || solution.length !== 9) return;
+        const fresh = makeDefault(puzzle, solution);
+        setSaved(prev => prev.date === TODAY && prev.mistakes > 0 ? prev : fresh);
+      })
+      .catch(() => {});
+  }, []); // eslint-disable-line react-hooks/exhaustive-deps
 
   useEffect(() => {
     if (state.won || state.endMs) return;
@@ -53,7 +82,7 @@ export function SudokuGame({ onBack }: { onBack: () => void }) {
   function fillCell(num: number) {
     if (!selected || state.won) return;
     const [r, c] = selected;
-    if (PUZZLE[r][c] !== 0) return; // locked cell
+    if (PUZZLE[r][c] !== 0) return;
     const newGrid = state.grid.map((row) => [...row]);
     newGrid[r][c] = num;
 
@@ -78,7 +107,7 @@ export function SudokuGame({ onBack }: { onBack: () => void }) {
   }
 
   function reset() {
-    setSaved({ ...DEFAULT, startMs: Date.now() });
+    setSaved(makeDefault(PUZZLE, SOLUTION));
     setSelected(null);
   }
 
@@ -91,7 +120,7 @@ export function SudokuGame({ onBack }: { onBack: () => void }) {
         (Math.floor(selected[0] / 3) === Math.floor(r / 3) && Math.floor(selected[1] / 3) === Math.floor(c / 3))
       : false;
     const isError = val !== 0 && !isLocked && !isCellValid(state.grid, r, c);
-    const isCorrect = val !== 0 && !isLocked && SOLUTION[r][c] === val;
+    const isCorrect = val !== 0 && !isLocked && SOLUTION[r]?.[c] === val;
 
     if (isSel) return 'bg-blue-600 text-white';
     if (isError) return 'bg-red-500/20 text-red-400';
@@ -124,7 +153,6 @@ export function SudokuGame({ onBack }: { onBack: () => void }) {
         </div>
       )}
 
-      {/* Grid */}
       <div className="flex-1 flex items-center justify-center py-4 px-4">
         <div className="inline-block border-2 border-white/40 rounded">
           {state.grid.map((row, r) => (
@@ -145,12 +173,10 @@ export function SudokuGame({ onBack }: { onBack: () => void }) {
         </div>
       </div>
 
-      {/* Mistakes */}
       <div className="text-center pb-2">
         <p className="text-xs text-gray-500">Mistakes: {state.mistakes}</p>
       </div>
 
-      {/* Number pad */}
       <div className="pb-6 px-4">
         <div className="flex justify-center gap-2 flex-wrap max-w-xs mx-auto">
           {[1,2,3,4,5,6,7,8,9].map((n) => (

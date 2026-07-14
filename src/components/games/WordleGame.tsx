@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback, useRef } from 'react';
 import { ArrowLeft } from 'lucide-react';
 import { getTodayString, dateToSeed } from '../../utils/seed';
 import { WORDLE_WORDS } from '../../data/wordleWords';
@@ -12,10 +12,11 @@ const WORD_LENGTH = 5;
 const MAX_GUESSES = 6;
 const TODAY = getTodayString();
 const SEED = dateToSeed(TODAY);
-const ANSWER = WORDLE_WORDS[SEED % WORDLE_WORDS.length].toUpperCase();
+const FALLBACK_ANSWER = WORDLE_WORDS[SEED % WORDLE_WORDS.length].toUpperCase();
 
 interface SavedWordleState {
   date: string;
+  answer: string;
   guesses: string[];
   currentGuess: string;
   gameOver: boolean;
@@ -24,6 +25,7 @@ interface SavedWordleState {
 
 const EMPTY: SavedWordleState = {
   date: TODAY,
+  answer: FALLBACK_ANSWER,
   guesses: [],
   currentGuess: '',
   gameOver: false,
@@ -35,7 +37,6 @@ function getLetterState(guess: string, answer: string): LetterState[] {
   const answerChars = answer.split('');
   const guessChars = guess.split('');
 
-  // First pass: correct
   guessChars.forEach((ch, i) => {
     if (ch === answerChars[i]) {
       states[i] = 'correct';
@@ -43,7 +44,6 @@ function getLetterState(guess: string, answer: string): LetterState[] {
       guessChars[i] = '*';
     }
   });
-  // Second pass: present
   guessChars.forEach((ch, i) => {
     if (ch === '*') return;
     const idx = answerChars.indexOf(ch);
@@ -68,6 +68,27 @@ export function WordleGame({ onBack }: { onBack: () => void }) {
   const [msg, setMsg] = useState('');
 
   const state = saved.date === TODAY ? saved : EMPTY;
+  const answer = state.answer || FALLBACK_ANSWER;
+  // Use ref so callbacks always see latest answer without stale closure
+  const answerRef = useRef(answer);
+  answerRef.current = answer;
+
+  // Fetch today's real answer if game hasn't started yet
+  useEffect(() => {
+    if (state.date === TODAY && state.guesses.length > 0) return;
+    fetch('https://wordlehints.co.uk/wp-json/wordlehint/v1/answers/latest')
+      .then(r => r.json())
+      .then(data => {
+        if (data?.answer && /^[A-Za-z]{5}$/.test(data.answer)) {
+          const fetched = data.answer.toUpperCase();
+          setSaved(prev => ({
+            ...(prev.date === TODAY && prev.guesses.length > 0 ? prev : EMPTY),
+            answer: fetched,
+          }));
+        }
+      })
+      .catch(() => {});
+  }, []); // eslint-disable-line react-hooks/exhaustive-deps
 
   function showMsg(text: string, ms = 1500) {
     setMsg(text);
@@ -76,16 +97,17 @@ export function WordleGame({ onBack }: { onBack: () => void }) {
 
   const submitGuess = useCallback(() => {
     const guess = state.currentGuess.toUpperCase();
+    const ans = answerRef.current;
     if (guess.length !== WORD_LENGTH) { setShake(true); setTimeout(() => setShake(false), 400); return; }
 
     const newGuesses = [...state.guesses, guess];
-    const won = guess === ANSWER;
+    const won = guess === ans;
     const over = won || newGuesses.length >= MAX_GUESSES;
 
-    setSaved({ date: TODAY, guesses: newGuesses, currentGuess: '', gameOver: over, won });
+    setSaved({ ...state, guesses: newGuesses, currentGuess: '', gameOver: over, won });
     if (over) {
       completeGame('wordle', won, { attempts: newGuesses.length });
-      setTimeout(() => showMsg(won ? '🎉 Brilliant!' : `The word was ${ANSWER}`, 3000), 300);
+      setTimeout(() => showMsg(won ? '🎉 Brilliant!' : `The word was ${ans}`, 3000), 300);
     }
   }, [state, setSaved, completeGame]);
 
@@ -110,10 +132,9 @@ export function WordleGame({ onBack }: { onBack: () => void }) {
     return () => window.removeEventListener('keydown', handler);
   }, [pressKey]);
 
-  // Build keyboard letter states
   const usedLetters: Record<string, LetterState> = {};
   state.guesses.forEach((g) => {
-    getLetterState(g, ANSWER).forEach((ls, i) => {
+    getLetterState(g, answer).forEach((ls, i) => {
       const ch = g[i];
       const cur = usedLetters[ch];
       if (!cur || (cur !== 'correct' && ls !== 'absent')) usedLetters[ch] = ls;
@@ -132,14 +153,13 @@ export function WordleGame({ onBack }: { onBack: () => void }) {
     : ls === 'absent' ? 'bg-[#3a3a3a] text-gray-400'
     : 'bg-[#2a2a2a] text-white';
 
-  const shareText = buildWordleShare(TODAY, state.guesses, ANSWER, state.won);
+  const shareText = buildWordleShare(TODAY, state.guesses, answer, state.won);
   const emojiGrid = state.guesses.map((g) =>
-    getLetterState(g, ANSWER).map((ls) => ls === 'correct' ? '🟩' : ls === 'present' ? '🟨' : '⬛').join('')
+    getLetterState(g, answer).map((ls) => ls === 'correct' ? '🟩' : ls === 'present' ? '🟨' : '⬛').join('')
   ).join('\n');
 
   return (
     <div className="min-h-screen bg-[#111] text-white flex flex-col">
-      {/* Header */}
       <header className="border-b border-white/10 flex items-center justify-between px-4 py-3">
         <button onClick={onBack} className="text-gray-400 hover:text-white transition-colors p-1">
           <ArrowLeft size={20} />
@@ -151,20 +171,18 @@ export function WordleGame({ onBack }: { onBack: () => void }) {
         <div className="w-8" />
       </header>
 
-      {/* Message toast */}
       {msg && (
         <div className="absolute top-20 left-1/2 -translate-x-1/2 bg-white text-black text-sm font-semibold px-4 py-2 rounded-full shadow-lg z-50 bounce-in">
           {msg}
         </div>
       )}
 
-      {/* Grid */}
       <div className="flex-1 flex flex-col items-center justify-center gap-1.5 py-6 px-4">
         {Array.from({ length: MAX_GUESSES }).map((_, row) => {
           const guess = state.guesses[row];
           const isCurrent = row === state.guesses.length && !state.gameOver;
           const display = isCurrent ? state.currentGuess.padEnd(WORD_LENGTH) : (guess ?? '').padEnd(WORD_LENGTH);
-          const states = guess ? getLetterState(guess, ANSWER) : null;
+          const states = guess ? getLetterState(guess, answer) : null;
 
           return (
             <div key={row} className={`flex gap-1.5 ${isCurrent && shake ? 'shake' : ''}`}>
@@ -187,7 +205,6 @@ export function WordleGame({ onBack }: { onBack: () => void }) {
         })}
       </div>
 
-      {/* Share if done */}
       {state.gameOver && (
         <div className="flex flex-col items-center gap-3 pb-4">
           <ShareButton
@@ -199,7 +216,6 @@ export function WordleGame({ onBack }: { onBack: () => void }) {
         </div>
       )}
 
-      {/* Keyboard */}
       <div className="pb-safe px-1 pb-4 space-y-1.5">
         {KEYBOARD_ROWS.map((row, ri) => (
           <div key={ri} className="flex justify-center gap-1">

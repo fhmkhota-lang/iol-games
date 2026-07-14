@@ -1,4 +1,4 @@
-import { useState, useMemo } from 'react';
+import { useState, useMemo, useEffect } from 'react';
 import { ArrowLeft, CheckCircle2, X } from 'lucide-react';
 import { getTodayString, dateToSeed, seededShuffle } from '../../utils/seed';
 import { CONNECTIONS_PUZZLES } from '../../data/connectionsData';
@@ -10,19 +10,39 @@ import type { ConnectionsCategory } from '../../types';
 
 const TODAY = getTodayString();
 const SEED = dateToSeed(TODAY);
-const PUZZLE = CONNECTIONS_PUZZLES[SEED % CONNECTIONS_PUZZLES.length];
+
+const LEVEL_COLOR: ConnectionsCategory['color'][] = ['yellow', 'green', 'blue', 'purple'];
+const LEVEL_EMOJI = ['🟡', '🟢', '🔵', '🟣'];
+
+const FALLBACK_PUZZLE = CONNECTIONS_PUZZLES[SEED % CONNECTIONS_PUZZLES.length];
+
+function mapApiPuzzle(entries: { level: number; group: string; members: string[] }[]): ConnectionsCategory[] {
+  return entries.map(e => ({
+    label: e.group,
+    words: e.members,
+    color: LEVEL_COLOR[e.level] ?? 'yellow',
+    emoji: LEVEL_EMOJI[e.level] ?? '🟡',
+  }));
+}
 
 interface SavedState {
   date: string;
-  solved: string[];         // category labels solved
-  solvedOrder: string[];    // emoji lines in order
+  puzzle: ConnectionsCategory[];
+  solved: string[];
+  solvedOrder: string[];
   attempts: number;
   gameOver: boolean;
   won: boolean;
 }
 
 const DEFAULT: SavedState = {
-  date: TODAY, solved: [], solvedOrder: [], attempts: 0, gameOver: false, won: false,
+  date: TODAY,
+  puzzle: FALLBACK_PUZZLE,
+  solved: [],
+  solvedOrder: [],
+  attempts: 0,
+  gameOver: false,
+  won: false,
 };
 
 const COLOR_MAP: Record<ConnectionsCategory['color'], string> = {
@@ -41,7 +61,27 @@ export function ConnectionsGame({ onBack }: { onBack: () => void }) {
   const [wrongAnim, setWrongAnim] = useState(false);
 
   const state = saved.date === TODAY ? saved : DEFAULT;
-  const remaining = useMemo(() => PUZZLE.filter((c) => !state.solved.includes(c.label)), [state.solved]);
+  const puzzle = state.puzzle;
+
+  // Fetch from Eyefyre dataset if fresh game
+  useEffect(() => {
+    if (state.date === TODAY && state.attempts > 0) return;
+    fetch('https://raw.githubusercontent.com/Eyefyre/NYT-Connections-Answers/main/connections.json')
+      .then(r => r.json())
+      .then((data: { answers: { level: number; group: string; members: string[] }[] }[]) => {
+        if (!Array.isArray(data) || data.length === 0) return;
+        const entry = data[SEED % data.length];
+        if (!entry?.answers) return;
+        const mapped = mapApiPuzzle(entry.answers);
+        setSaved(prev => ({
+          ...(prev.date === TODAY && prev.attempts > 0 ? prev : DEFAULT),
+          puzzle: mapped,
+        }));
+      })
+      .catch(() => {});
+  }, []); // eslint-disable-line react-hooks/exhaustive-deps
+
+  const remaining = useMemo(() => puzzle.filter((c) => !state.solved.includes(c.label)), [puzzle, state.solved]);
   const shuffledWords = useMemo(
     () => seededShuffle(remaining.flatMap((c) => c.words), SEED + state.solved.length),
     [remaining, state.solved.length]
@@ -62,7 +102,7 @@ export function ConnectionsGame({ onBack }: { onBack: () => void }) {
       const newSolved = [...state.solved, match.label];
       const emojiLine = `${match.emoji} ${match.label.toUpperCase()}`;
       const newOrder = [...state.solvedOrder, emojiLine];
-      const won = newSolved.length === PUZZLE.length;
+      const won = newSolved.length === puzzle.length;
       const update: SavedState = {
         ...state,
         solved: newSolved,
@@ -76,7 +116,7 @@ export function ConnectionsGame({ onBack }: { onBack: () => void }) {
       if (won) completeGame('connections', true, { attempts: state.attempts + 1 });
     } else {
       const newAttempts = state.attempts + 1;
-      const lost = LIVES - newAttempts <= 0;
+      const lost = LIVES - (newAttempts - state.solved.length) <= 0;
       setWrongAnim(true);
       setTimeout(() => setWrongAnim(false), 600);
       const update: SavedState = { ...state, attempts: newAttempts, gameOver: lost, won: false };
@@ -90,7 +130,6 @@ export function ConnectionsGame({ onBack }: { onBack: () => void }) {
 
   const mistakes = state.attempts - state.solved.length;
   const livesRemaining = LIVES - mistakes;
-
   const shareText = buildConnectionsShare(TODAY, state.attempts, state.won, state.solvedOrder);
 
   return (
@@ -105,7 +144,6 @@ export function ConnectionsGame({ onBack }: { onBack: () => void }) {
       </header>
 
       <main className="flex-1 max-w-lg mx-auto w-full px-4 py-5 flex flex-col gap-4">
-        {/* Lives */}
         <div className="flex items-center justify-between">
           <p className="text-sm text-gray-400">Mistakes remaining:</p>
           <div className="flex gap-1.5">
@@ -120,9 +158,9 @@ export function ConnectionsGame({ onBack }: { onBack: () => void }) {
           </div>
         </div>
 
-        {/* Solved categories */}
         {state.solved.map((label) => {
-          const cat = PUZZLE.find((c) => c.label === label)!;
+          const cat = puzzle.find((c) => c.label === label)!;
+          if (!cat) return null;
           return (
             <div key={label} className={`${COLOR_MAP[cat.color]} rounded-xl p-4 text-center bounce-in`}>
               <p className="font-bold text-white text-sm uppercase tracking-wide">{cat.label}</p>
@@ -131,7 +169,6 @@ export function ConnectionsGame({ onBack }: { onBack: () => void }) {
           );
         })}
 
-        {/* Word grid */}
         {!state.gameOver && (
           <div className={`grid grid-cols-4 gap-2 ${wrongAnim ? 'shake' : ''}`}>
             {shuffledWords.map((word) => {
@@ -151,7 +188,6 @@ export function ConnectionsGame({ onBack }: { onBack: () => void }) {
           </div>
         )}
 
-        {/* Controls */}
         {!state.gameOver && (
           <div className="flex gap-2 justify-center">
             <button
@@ -170,7 +206,6 @@ export function ConnectionsGame({ onBack }: { onBack: () => void }) {
           </div>
         )}
 
-        {/* Result */}
         {state.gameOver && (
           <div className={`rounded-xl p-4 text-center ${state.won ? 'bg-green-500/10 border border-green-500/30' : 'bg-red-500/10 border border-red-500/30'}`}>
             <div className="flex items-center justify-center gap-2 mb-2">
@@ -181,7 +216,7 @@ export function ConnectionsGame({ onBack }: { onBack: () => void }) {
             </div>
             {!state.won && (
               <div className="mt-2 space-y-1">
-                {PUZZLE.filter((c) => !state.solved.includes(c.label)).map((c) => (
+                {puzzle.filter((c) => !state.solved.includes(c.label)).map((c) => (
                   <p key={c.label} className="text-xs text-gray-400">{c.emoji} {c.label}: {c.words.join(', ')}</p>
                 ))}
               </div>

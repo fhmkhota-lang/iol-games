@@ -1,143 +1,256 @@
-import { useState, useMemo, useRef, useEffect } from 'react';
-import { ArrowLeft, HelpCircle, CheckCircle2 } from 'lucide-react';
-import { getTodayString, dateToSeed } from '../../utils/seed';
-import { CROSSWORD_PUZZLES } from '../../data/crosswordData';
+import { useState, useMemo, useRef, useEffect, useCallback } from 'react';
+import { ArrowLeft, HelpCircle, CheckCircle2, Loader2 } from 'lucide-react';
+import { getTodayString } from '../../utils/seed';
 import { useLocalStorage } from '../../hooks/useLocalStorage';
 import { useGameStore } from '../../hooks/useGameStore';
 import { ShareButton } from '../ui/ShareButton';
 
 const TODAY = getTodayString();
-const SEED = dateToSeed(TODAY);
-const PUZZLE = CROSSWORD_PUZZLES[SEED % CROSSWORD_PUZZLES.length];
-const SOLUTION = PUZZLE.grid;   // 5×5 string[][]
-const ROWS = SOLUTION.length;
-const COLS = SOLUTION[0].length;
+const SIZE = 15;
 
-// Map "r,c" → clue number for cells that start an entry
-const NUMBER_MAP = new Map<string, number>();
-for (const clue of PUZZLE.clues) {
-  const key = `${clue.row},${clue.col}`;
-  if (!NUMBER_MAP.has(key)) NUMBER_MAP.set(key, clue.number);
+// Map today's date to a puzzle in the doshea dataset (2008 has full year coverage)
+function getPuzzleUrl(year = 2008): string {
+  const [, m, d] = TODAY.split('-');
+  const month = parseInt(m);
+  const day = parseInt(d);
+  // Cap Feb at 28 (2008 is a leap year so Feb 29 is actually fine)
+  const mm = String(month).padStart(2, '0');
+  const dd = String(day).padStart(2, '0');
+  return `https://raw.githubusercontent.com/doshea/nyt_crosswords/master/${year}/${mm}/${dd}.json`;
+}
+
+// Try multiple years in case a specific day is missing
+async function fetchPuzzle(): Promise<ApiCrossword> {
+  const years = [2008, 2010, 2012, 2014, 2016];
+  for (const year of years) {
+    try {
+      const r = await fetch(getPuzzleUrl(year));
+      if (!r.ok) continue;
+      const data = await r.json();
+      if (data?.grid && data.grid.length === SIZE * SIZE) return data;
+    } catch {
+      continue;
+    }
+  }
+  throw new Error('no puzzle found');
+}
+
+interface ApiCrossword {
+  grid: string[];
+  gridnums: number[];
+  clues: { across: string[]; down: string[] };
+  answers: { across: string[]; down: string[] };
+}
+
+interface Entry {
+  number: number;
+  direction: 'across' | 'down';
+  row: number;
+  col: number;
+  answer: string;
+  clue: string;
+}
+
+function buildEntries(data: ApiCrossword): Entry[] {
+  const numToPos = new Map<number, [number, number]>();
+  data.gridnums.forEach((num, idx) => {
+    if (num > 0) numToPos.set(num, [Math.floor(idx / SIZE), idx % SIZE]);
+  });
+
+  function parseNum(s: string) { return parseInt(s.match(/^(\d+)\./)?.[1] ?? '0'); }
+  function parseText(s: string) { return s.replace(/^\d+\.\s*/, ''); }
+
+  const entries: Entry[] = [];
+
+  data.clues.across.forEach((clue, i) => {
+    const num = parseNum(clue);
+    const pos = numToPos.get(num);
+    const answer = data.answers.across[i];
+    if (!pos || !answer) return;
+    entries.push({ number: num, direction: 'across', row: pos[0], col: pos[1], answer, clue: parseText(clue) });
+  });
+
+  data.clues.down.forEach((clue, i) => {
+    const num = parseNum(clue);
+    const pos = numToPos.get(num);
+    const answer = data.answers.down[i];
+    if (!pos || !answer) return;
+    entries.push({ number: num, direction: 'down', row: pos[0], col: pos[1], answer, clue: parseText(clue) });
+  });
+
+  return entries;
 }
 
 interface SavedState {
   date: string;
-  userGrid: string[][];
+  apiGrid: string[];     // solution / black-square map from API
+  gridnums: number[];
+  entries: Entry[];
+  userGrid: string[];    // user's letters, '' = empty
   won: boolean;
 }
 
-const DEFAULT: SavedState = {
-  date: TODAY,
-  userGrid: SOLUTION.map(r => r.map(() => '')),
-  won: false,
-};
+function makeDefault(data: ApiCrossword): SavedState {
+  return {
+    date: TODAY,
+    apiGrid: data.grid,
+    gridnums: data.gridnums,
+    entries: buildEntries(data),
+    userGrid: data.grid.map(c => c === '.' ? '.' : ''),
+    won: false,
+  };
+}
 
 export function CrosswordGame({ onBack }: { onBack: () => void }) {
-  const [saved, setSaved] = useLocalStorage<SavedState>('iol_crossword_state', DEFAULT);
+  const [saved, setSaved] = useLocalStorage<SavedState | null>('iol_crossword_nyt_state', null);
   const { completeGame } = useGameStore();
-  const [selected, setSelected] = useState<[number, number] | null>(null);
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState(false);
+  const [selected, setSelected] = useState<number | null>(null); // flat index
   const [direction, setDirection] = useState<'across' | 'down'>('across');
   const [showClues, setShowClues] = useState(false);
   const inputRef = useRef<HTMLInputElement>(null);
 
-  const state = saved.date === TODAY ? saved : DEFAULT;
+  const state = saved?.date === TODAY ? saved : null;
+
+  const [fetchKey, setFetchKey] = useState(0);
+
+  useEffect(() => {
+    if (state) return;
+    setLoading(true);
+    setError(false);
+    fetchPuzzle()
+      .then((data) => {
+        setSaved(makeDefault(data));
+        setLoading(false);
+      })
+      .catch(() => {
+        setLoading(false);
+        setError(true);
+      });
+  }, [fetchKey]); // eslint-disable-line react-hooks/exhaustive-deps
 
   useEffect(() => {
     inputRef.current?.focus();
   }, [selected]);
 
-  // Find the active word entry based on current selection + direction
-  const activeEntry = useMemo(() => {
-    if (!selected) return null;
-    const [r, c] = selected;
-    return PUZZLE.clues.find(entry => {
-      if (entry.direction !== direction) return false;
-      if (direction === 'across') {
-        return entry.row === r && c >= entry.col && c < entry.col + entry.answer.length;
-      }
-      return entry.col === c && r >= entry.row && r < entry.row + entry.answer.length;
-    }) ?? null;
-  }, [selected, direction]);
+  const apiGrid = state?.apiGrid ?? [];
+  const gridnums = state?.gridnums ?? [];
+  const entries = state?.entries ?? [];
+  const userGrid = state?.userGrid ?? [];
 
-  function selectCell(r: number, c: number) {
-    if (selected?.[0] === r && selected?.[1] === c) {
-      // Toggle direction, but only if valid entry exists in new direction
+  function idx(r: number, c: number) { return r * SIZE + c; }
+
+  function isBlack(i: number) { return apiGrid[i] === '.'; }
+
+  // Find active entry containing the given flat index
+  const activeEntry = useMemo(() => {
+    if (selected === null) return null;
+    const r = Math.floor(selected / SIZE);
+    const c = selected % SIZE;
+    return entries.find(e => {
+      if (e.direction !== direction) return false;
+      if (direction === 'across') {
+        return e.row === r && c >= e.col && c < e.col + e.answer.length;
+      }
+      return e.col === c && r >= e.row && r < e.row + e.answer.length;
+    }) ?? null;
+  }, [selected, direction, entries]);
+
+  function selectCell(i: number) {
+    if (isBlack(i)) return;
+    const r = Math.floor(i / SIZE);
+    const c = i % SIZE;
+
+    if (selected === i) {
+      // Toggle direction if valid entry exists in other direction
       const newDir = direction === 'across' ? 'down' : 'across';
-      const hasEntry = PUZZLE.clues.some(e => {
+      const hasOther = entries.some(e => {
         if (e.direction !== newDir) return false;
         if (newDir === 'across') return e.row === r && c >= e.col && c < e.col + e.answer.length;
         return e.col === c && r >= e.row && r < e.row + e.answer.length;
       });
-      if (hasEntry) setDirection(newDir);
+      if (hasOther) setDirection(newDir);
     } else {
-      setSelected([r, c]);
-      const hasAcross = PUZZLE.clues.some(e =>
+      setSelected(i);
+      const hasAcross = entries.some(e =>
         e.direction === 'across' && e.row === r && c >= e.col && c < e.col + e.answer.length
       );
-      const hasDown = PUZZLE.clues.some(e =>
-        e.direction === 'down' && e.col === c && r >= e.row && r < e.row + e.answer.length
-      );
-      // Prefer 'across' when the cell has one; only use 'down' if no across entry exists.
-      // Tap the same cell again to toggle between directions.
       if (hasAcross) setDirection('across');
-      else if (hasDown) setDirection('down');
+      else setDirection('down');
     }
     inputRef.current?.focus();
   }
 
-  function advance(r: number, c: number) {
+  function advance(i: number) {
+    const r = Math.floor(i / SIZE);
+    const c = i % SIZE;
     if (direction === 'across') {
-      if (c + 1 < COLS) setSelected([r, c + 1]);
+      for (let nc = c + 1; nc < SIZE; nc++) {
+        const ni = idx(r, nc);
+        if (!isBlack(ni)) { setSelected(ni); return; }
+      }
     } else {
-      if (r + 1 < ROWS) setSelected([r + 1, c]);
+      for (let nr = r + 1; nr < SIZE; nr++) {
+        const ni = idx(nr, c);
+        if (!isBlack(ni)) { setSelected(ni); return; }
+      }
     }
   }
 
-  function retreat(r: number, c: number) {
+  function retreat(i: number) {
+    const r = Math.floor(i / SIZE);
+    const c = i % SIZE;
     if (direction === 'across') {
-      if (c - 1 >= 0) setSelected([r, c - 1]);
+      for (let nc = c - 1; nc >= 0; nc--) {
+        const ni = idx(r, nc);
+        if (!isBlack(ni)) { setSelected(ni); return; }
+      }
     } else {
-      if (r - 1 >= 0) setSelected([r - 1, c]);
+      for (let nr = r - 1; nr >= 0; nr--) {
+        const ni = idx(nr, c);
+        if (!isBlack(ni)) { setSelected(ni); return; }
+      }
     }
   }
 
-  function handleKey(e: React.KeyboardEvent) {
-    if (!selected) return;
-    const [r, c] = selected;
+  const handleKey = useCallback((e: React.KeyboardEvent) => {
+    if (selected === null || !state) return;
     const key = e.key.toUpperCase();
 
     if (key === 'BACKSPACE') {
       e.preventDefault();
-      const newGrid = state.userGrid.map(row => [...row]);
-      if (newGrid[r][c]) {
-        newGrid[r][c] = '';
+      const newGrid = [...userGrid];
+      if (newGrid[selected] && newGrid[selected] !== '.') {
+        newGrid[selected] = '';
         setSaved({ ...state, userGrid: newGrid });
       } else {
-        retreat(r, c);
+        retreat(selected);
       }
       return;
     }
 
     if (/^[A-Z]$/.test(key)) {
       e.preventDefault();
-      const newGrid = state.userGrid.map(row => [...row]);
-      newGrid[r][c] = key;
-      const won = SOLUTION.every((row, ri) =>
-        row.every((cell, ci) => newGrid[ri][ci] === cell)
-      );
+      const newGrid = [...userGrid];
+      newGrid[selected] = key;
+      const won = apiGrid.every((c, i) => c === '.' || newGrid[i] === c);
       setSaved({ ...state, userGrid: newGrid, won });
       if (won) completeGame('crossword', true);
-      else advance(r, c);
+      else advance(selected);
     }
 
     if (key === 'ARROWRIGHT' || key === 'ARROWLEFT') { e.preventDefault(); setDirection('across'); }
     if (key === 'ARROWUP' || key === 'ARROWDOWN') { e.preventDefault(); setDirection('down'); }
-  }
+  }, [selected, state, userGrid, apiGrid, setSaved, completeGame]);
 
-  function getCellStyle(r: number, c: number): string {
-    const isSel = selected?.[0] === r && selected?.[1] === c;
-    const val = state.userGrid[r]?.[c];
-    const sol = SOLUTION[r]?.[c];
+  function getCellStyle(i: number): string {
+    if (isBlack(i)) return 'bg-black';
+    const isSel = selected === i;
+    const val = userGrid[i];
+    const sol = apiGrid[i];
+    const r = Math.floor(i / SIZE);
+    const c = i % SIZE;
 
     const inWord = activeEntry && (() => {
       const { row, col, answer, direction: d } = activeEntry;
@@ -145,26 +258,60 @@ export function CrosswordGame({ onBack }: { onBack: () => void }) {
       return c === col && r >= row && r < row + answer.length;
     })();
 
-    if (isSel) return 'bg-blue-500 text-white';
-    if (inWord) return 'bg-blue-500/20 text-white';
-    if (val && val === sol) return 'bg-green-600/20 text-green-300';
-    if (val && val !== sol) return 'bg-red-500/20 text-red-300';
-    return 'bg-[#2a2a2a] text-white';
+    if (isSel) return 'bg-blue-500 text-black';
+    if (inWord) return 'bg-blue-100 text-black';
+    if (val && val === sol) return 'bg-green-100 text-black';
+    if (val && val !== sol) return 'bg-red-100 text-black';
+    return 'bg-white text-black';
   }
 
-  const across = PUZZLE.clues
-    .filter(c => c.direction === 'across')
-    .sort((a, b) => a.number - b.number);
-  const down = PUZZLE.clues
-    .filter(c => c.direction === 'down')
-    .sort((a, b) => a.number - b.number);
+  const across = useMemo(() => entries.filter(e => e.direction === 'across').sort((a, b) => a.number - b.number), [entries]);
+  const down = useMemo(() => entries.filter(e => e.direction === 'down').sort((a, b) => a.number - b.number), [entries]);
 
-  const shareText = `IOL Mini Crossword ${TODAY}\n${state.won ? '✅ Solved!' : '🔲 In progress'}\n\nPlay at iol.co.za/games`;
-  const cellPx = 56; // fixed 56px cells → 280px total for 5 cols
+  const shareText = `IOL Crossword ${TODAY}\n${state?.won ? '✅ Solved!' : '🔲 In progress'}\n\nPlay at iol.co.za/games`;
+
+  if (loading) {
+    return (
+      <div className="min-h-screen bg-[#111] text-white flex flex-col">
+        <header className="border-b border-white/10 flex items-center justify-between px-4 py-3">
+          <button onClick={onBack} className="text-gray-400 hover:text-white p-1"><ArrowLeft size={20} /></button>
+          <h1 className="font-bold text-base">IOL Crossword</h1>
+          <div className="w-8" />
+        </header>
+        <div className="flex-1 flex items-center justify-center gap-3 text-gray-400">
+          <Loader2 size={20} className="animate-spin" />
+          <span className="text-sm">Loading today's puzzle…</span>
+        </div>
+      </div>
+    );
+  }
+
+  if (error || !state) {
+    return (
+      <div className="min-h-screen bg-[#111] text-white flex flex-col">
+        <header className="border-b border-white/10 flex items-center justify-between px-4 py-3">
+          <button onClick={onBack} className="text-gray-400 hover:text-white p-1"><ArrowLeft size={20} /></button>
+          <h1 className="font-bold text-base">IOL Crossword</h1>
+          <div className="w-8" />
+        </header>
+        <div className="flex-1 flex flex-col items-center justify-center gap-4 px-6 text-center">
+          <p className="text-gray-400 text-sm">Couldn't load today's puzzle. Check your connection and try again.</p>
+          <button
+            onClick={() => { setSaved(null); setFetchKey(k => k + 1); }}
+            className="px-4 py-2 bg-white/10 hover:bg-white/20 rounded-lg text-sm transition-colors"
+          >
+            Retry
+          </button>
+        </div>
+      </div>
+    );
+  }
+
+  // Cell pixel size — fit 15 cells in viewport width minus padding
+  const cellPx = Math.floor(Math.min(Math.max(window.innerWidth - 32, 300), 390) / SIZE);
 
   return (
     <div className="min-h-screen bg-[#111] text-white flex flex-col">
-      {/* Hidden input captures physical keyboard on mobile */}
       <input
         ref={inputRef}
         className="absolute opacity-0 w-0 h-0 pointer-events-none"
@@ -174,19 +321,17 @@ export function CrosswordGame({ onBack }: { onBack: () => void }) {
       />
 
       <header className="border-b border-white/10 flex items-center justify-between px-4 py-3">
-        <button onClick={onBack} className="text-gray-400 hover:text-white p-1">
-          <ArrowLeft size={20} />
-        </button>
+        <button onClick={onBack} className="text-gray-400 hover:text-white p-1"><ArrowLeft size={20} /></button>
         <div className="text-center">
-          <h1 className="font-bold text-base">IOL Mini Crossword</h1>
-          <p className="text-gray-500 text-xs">{TODAY}</p>
+          <h1 className="font-bold text-base">IOL Crossword</h1>
+          <p className="text-gray-500 text-xs">{TODAY} · NYT Classic</p>
         </div>
         <button onClick={() => setShowClues(v => !v)} className="text-gray-400 hover:text-white p-1">
           <HelpCircle size={20} />
         </button>
       </header>
 
-      <main className="flex-1 max-w-lg mx-auto w-full px-4 py-4 flex flex-col items-center gap-4">
+      <main className="flex-1 max-w-lg mx-auto w-full px-4 py-3 flex flex-col items-center gap-3 overflow-y-auto">
         {state.won && (
           <div className="bounce-in w-full bg-green-500/10 border border-green-500/30 rounded-xl p-3 flex items-center justify-between">
             <div className="flex items-center gap-2">
@@ -197,32 +342,38 @@ export function CrosswordGame({ onBack }: { onBack: () => void }) {
           </div>
         )}
 
-        {/* 5×5 Grid */}
+        {/* 15×15 Grid */}
         <div
-          className="border-2 border-white/30 rounded overflow-hidden"
-          style={{ display: 'inline-grid', gridTemplateColumns: `repeat(${COLS}, ${cellPx}px)` }}
+          className="border border-black"
+          style={{
+            display: 'grid',
+            gridTemplateColumns: `repeat(${SIZE}, ${cellPx}px)`,
+            gap: 0,
+          }}
         >
-          {Array.from({ length: ROWS }).map((_, r) =>
-            Array.from({ length: COLS }).map((_, c) => {
-              const num = NUMBER_MAP.get(`${r},${c}`);
-              const val = state.userGrid[r]?.[c] ?? '';
-              return (
-                <button
-                  key={`${r}-${c}`}
-                  onClick={() => selectCell(r, c)}
-                  style={{ width: cellPx, height: cellPx }}
-                  className={`relative flex items-center justify-center border border-white/15 text-lg font-bold uppercase transition-colors ${getCellStyle(r, c)}`}
-                >
-                  {num != null && (
-                    <span className="absolute top-0.5 left-0.5 text-[8px] text-white/50 leading-none font-normal">
-                      {num}
-                    </span>
-                  )}
-                  {val}
-                </button>
-              );
-            })
-          )}
+          {Array.from({ length: SIZE * SIZE }).map((_, i) => {
+            const num = gridnums[i];
+            const val = userGrid[i];
+            const black = isBlack(i);
+            return (
+              <button
+                key={i}
+                onClick={() => selectCell(i)}
+                disabled={black}
+                style={{ width: cellPx, height: cellPx }}
+                className={`relative flex items-center justify-center border border-black/30 text-[10px] font-bold uppercase transition-colors ${getCellStyle(i)}`}
+              >
+                {!black && num > 0 && (
+                  <span className="absolute top-0 left-0 text-[5px] leading-none font-normal text-black/50 px-px pt-px">
+                    {num}
+                  </span>
+                )}
+                {!black && val ? (
+                  <span style={{ fontSize: Math.max(cellPx * 0.5, 8) }}>{val}</span>
+                ) : null}
+              </button>
+            );
+          })}
         </div>
 
         {/* Active clue bar */}
@@ -235,54 +386,38 @@ export function CrosswordGame({ onBack }: { onBack: () => void }) {
           </div>
         )}
 
-        {/* On-screen letter pad */}
-        {selected && !showClues && (
+        {/* On-screen keyboard */}
+        {selected !== null && !showClues && (
           <div className="w-full">
-            {'QWERTYUIOPASDFGHJKLZXCVBNM'.split('').reduce((rows: string[][], letter, i) => {
-              const rowIdx = i < 10 ? 0 : i < 19 ? 1 : 2;
-              if (!rows[rowIdx]) rows[rowIdx] = [];
-              rows[rowIdx].push(letter);
-              return rows;
-            }, []).map((row, ri) => (
-              <div key={ri} className="flex justify-center gap-1 mb-1">
+            {(['QWERTYUIOP'.split(''), 'ASDFGHJKL'.split(''), [...'ZXCVBNM'.split(''), '⌫']] as string[][]).map((row, ri) => (
+              <div key={ri} className="flex justify-center gap-0.5 mb-1">
                 {row.map(letter => (
                   <button
                     key={letter}
                     onClick={() => {
-                      const e = { key: letter, preventDefault: () => {} } as unknown as React.KeyboardEvent;
+                      const e = { key: letter === '⌫' ? 'BACKSPACE' : letter, preventDefault: () => {} } as unknown as React.KeyboardEvent;
                       handleKey(e);
                     }}
-                    className="w-8 h-10 rounded bg-white/10 hover:bg-white/20 text-white text-xs font-bold uppercase transition-colors"
+                    className={`${letter === '⌫' ? 'w-10' : 'w-7'} h-9 rounded bg-white/10 hover:bg-white/20 text-white text-xs font-bold uppercase transition-colors`}
                   >
                     {letter}
                   </button>
                 ))}
-                {ri === 2 && (
-                  <button
-                    onClick={() => {
-                      const e = { key: 'BACKSPACE', preventDefault: () => {} } as unknown as React.KeyboardEvent;
-                      handleKey(e);
-                    }}
-                    className="w-12 h-10 rounded bg-white/10 hover:bg-white/20 text-white text-xs transition-colors"
-                  >
-                    ⌫
-                  </button>
-                )}
               </div>
             ))}
           </div>
         )}
 
-        {/* Clue list (shown when ? tapped) */}
+        {/* Clue list */}
         {showClues && (
-          <div className="w-full grid grid-cols-2 gap-4 text-sm">
+          <div className="w-full grid grid-cols-2 gap-4 text-sm pb-8">
             <div>
               <p className="font-bold text-gray-300 mb-2 text-xs uppercase tracking-wide">Across</p>
               {across.map(entry => (
                 <button
                   key={`${entry.number}a`}
                   onClick={() => {
-                    setSelected([entry.row, entry.col]);
+                    setSelected(idx(entry.row, entry.col));
                     setDirection('across');
                     setShowClues(false);
                   }}
@@ -298,7 +433,7 @@ export function CrosswordGame({ onBack }: { onBack: () => void }) {
                 <button
                   key={`${entry.number}d`}
                   onClick={() => {
-                    setSelected([entry.row, entry.col]);
+                    setSelected(idx(entry.row, entry.col));
                     setDirection('down');
                     setShowClues(false);
                   }}
@@ -311,8 +446,8 @@ export function CrosswordGame({ onBack }: { onBack: () => void }) {
           </div>
         )}
 
-        {!showClues && !selected && (
-          <p className="text-gray-600 text-xs">Tap a cell to start — tap ? for all clues</p>
+        {!showClues && selected === null && (
+          <p className="text-gray-600 text-xs">Tap a white cell to start — ? for all clues</p>
         )}
       </main>
     </div>
