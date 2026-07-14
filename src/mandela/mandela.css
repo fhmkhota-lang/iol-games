@@ -1,0 +1,398 @@
+/* ═══════════════════════════════════════════════════════════════════════
+   MANDELA DAY — SCROLL-DRIVEN CANVAS EXPERIENCE
+   Protest-poster energy. B&W for oppression → colour at liberation.
+   Bold condensed sans. NOT italic serif. NOT gold-on-dark template.
+═══════════════════════════════════════════════════════════════════════ */
+
+:root {
+  --void:    #080604;
+  --white:   #ffffff;
+  --off:     #e2ddd6;
+  --sans:    'Helvetica Neue', 'Arial Narrow', Arial, sans-serif;
+  --mono:    'Courier New', 'Courier', monospace;
+}
+
+/* ── Body lock ───────────────────────────────────────────────────────── */
+body.mandela-active {
+  background: var(--void);
+  overflow-y: auto;
+  height: auto;
+}
+
+/* ── Root — sits ABOVE the scroll track ─────────────────────────────── */
+.me-root {
+  background: var(--void);
+}
+
+/* ── Scroll track — creates scroll height, invisible ────────────────── */
+.me-track {
+  position: relative;
+  width: 100%;
+  pointer-events: none;
+}
+
+/* ── Film grain ──────────────────────────────────────────────────────── */
+.me-grain {
+  position: fixed;
+  inset: 0;
+  pointer-events: none;
+  z-index: 9000;
+  opacity: 0.045;
+  background-image:
+    url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='256' height='256'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.88' numOctaves='4' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='256' height='256' filter='url(%23n)'/%3E%3C/svg%3E");
+  background-size: 220px 220px;
+  animation: grain 0.12s steps(1) infinite;
+  mix-blend-mode: overlay;
+}
+
+@keyframes grain {
+  0%  { background-position:   0%   0%; }
+  10% { background-position:  -5%  -5%; }
+  20% { background-position:   3%   8%; }
+  30% { background-position:   8%  -4%; }
+  40% { background-position:  -4%   6%; }
+  50% { background-position:   2%  -8%; }
+  60% { background-position:  -7%   2%; }
+  70% { background-position:   4%   5%; }
+  80% { background-position:  -3%  -6%; }
+  90% { background-position:   6%   3%; }
+}
+
+/* ── Progress bar — top of screen ───────────────────────────────────── */
+.me-progress-rail {
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  height: 2px;
+  background: rgba(255,255,255,0.08);
+  z-index: 8000;
+  overflow: hidden;
+}
+
+.me-progress-fill {
+  position: absolute;
+  inset: 0;
+  background: var(--white);
+  transform-origin: left;
+  transform: scaleX(0);
+  will-change: transform;
+}
+
+/* ── Chapter nav — right edge ───────────────────────────────────────── */
+.me-nav {
+  position: fixed;
+  right: 1.5rem;
+  top: 50%;
+  transform: translateY(-50%);
+  z-index: 7000;
+  display: flex;
+  flex-direction: column;
+  gap: 0.7rem;
+}
+
+.me-dot {
+  width: 5px;
+  height: 5px;
+  border-radius: 50%;
+  border: 1px solid rgba(255,255,255,0.3);
+  background: transparent;
+  cursor: pointer;
+  padding: 0;
+  appearance: none;
+  transition: all 0.25s ease;
+}
+
+.me-dot:hover { border-color: rgba(255,255,255,0.7); }
+
+.me-dot--active {
+  background: var(--white);
+  border-color: var(--white);
+  transform: scale(1.6);
+}
+
+/* ── Fixed canvas — background image layers ─────────────────────────── */
+.me-canvas {
+  position: fixed;
+  inset: 0;
+  z-index: 1;
+}
+
+.me-img {
+  position: absolute;
+  inset: 0;
+  background-size: cover;
+  background-position: center;
+  will-change: opacity;
+  transition: opacity 0.05s linear;
+}
+
+.me-img--void {
+  background: var(--void);
+}
+
+/* Dark overlay on the canvas — makes text legible without a "box" */
+.me-canvas-overlay {
+  position: absolute;
+  inset: 0;
+  /* Gradient from bottom-left (darker) to top-right (lighter) */
+  background:
+    linear-gradient(135deg, rgba(8,6,4,0.78) 0%, rgba(8,6,4,0.3) 60%, transparent 100%),
+    linear-gradient(to top,  rgba(8,6,4,0.88) 0%, rgba(8,6,4,0.15) 55%, transparent 100%);
+}
+
+/* ════════════════════════════════════════════════════════════════════
+   FIXED CHAPTER CONTENT LAYERS
+   Each chapter floats as a fixed overlay. JS drives opacity.
+════════════════════════════════════════════════════════════════════ */
+
+.me-chapter {
+  position: fixed;
+  inset: 0;
+  z-index: 200;
+  display: flex;
+  flex-direction: column;
+  justify-content: flex-end;
+  padding: 0 clamp(2.5rem, 6vw, 7rem) 5.5rem;
+  pointer-events: none;
+  will-change: opacity, transform;
+  max-width: 100%;
+}
+
+/* Vertical alignment variants */
+.me-chapter--valign-center {
+  justify-content: center;
+  padding-bottom: 0;
+}
+
+.me-chapter--valign-bottom {
+  justify-content: flex-end;
+}
+
+/* Horizontal alignment variants */
+.me-chapter--left  { align-items: flex-start; text-align: left; }
+.me-chapter--right { align-items: flex-end;   text-align: right; padding-right: clamp(3rem, 7vw, 9rem); padding-left: 35%; }
+.me-chapter--center {
+  align-items: center;
+  text-align: center;
+  padding-left: clamp(2rem, 8vw, 12rem);
+  padding-right: clamp(2rem, 8vw, 12rem);
+}
+
+/* ── Year label ──────────────────────────────────────────────────────── */
+.me-year {
+  font-family: var(--mono);
+  font-size: 0.65rem;
+  letter-spacing: 0.22em;
+  color: rgba(255,255,255,0.5);
+  text-transform: uppercase;
+  margin-bottom: 1rem;
+  display: block;
+}
+
+/* ── Big headline — BOLD CONDENSED SANS, not italic serif ───────────── */
+.me-headline {
+  font-family: var(--sans);
+  font-size: clamp(4rem, 12vw, 12rem);
+  font-weight: 900;
+  line-height: 0.87;
+  letter-spacing: -0.03em;
+  text-transform: uppercase;
+  margin: 0 0 1.4rem;
+  display: flex;
+  flex-direction: column;
+  /* color is set per-chapter via inline style */
+}
+
+.me-headline-line {
+  display: block;
+}
+
+/* ── Sub-headline ────────────────────────────────────────────────────── */
+.me-sub {
+  font-family: var(--sans);
+  font-size: clamp(0.75rem, 1.4vw, 0.95rem);
+  font-weight: 400;
+  letter-spacing: 0.06em;
+  color: rgba(255,255,255,0.55);
+  margin: 0 0 1.8rem;
+  text-transform: uppercase;
+}
+
+/* ── Stat callout ────────────────────────────────────────────────────── */
+.me-stat {
+  display: flex;
+  align-items: baseline;
+  gap: 0.8rem;
+  margin-bottom: 1.8rem;
+}
+
+.me-stat-number {
+  font-family: var(--sans);
+  font-size: clamp(5rem, 14vw, 12rem);
+  font-weight: 900;
+  line-height: 1;
+  letter-spacing: -0.04em;
+  /* color set via inline style */
+}
+
+.me-stat-label {
+  font-family: var(--mono);
+  font-size: 0.7rem;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  color: rgba(255,255,255,0.5);
+  max-width: 120px;
+  line-height: 1.4;
+}
+
+/* ── Dates (title chapter) ───────────────────────────────────────────── */
+.me-dates {
+  font-family: var(--mono);
+  font-size: 0.72rem;
+  letter-spacing: 0.18em;
+  color: rgba(255,255,255,0.38);
+  margin: 0 0 1.5rem;
+  text-transform: uppercase;
+}
+
+/* ── Body text ───────────────────────────────────────────────────────── */
+.me-body {
+  font-family: var(--sans);
+  font-size: clamp(0.9rem, 1.5vw, 1.05rem);
+  line-height: 1.75;
+  color: rgba(255,255,255,0.72);
+  max-width: 580px;
+  margin: 0 0 1.8rem;
+  font-weight: 400;
+}
+
+/* ── Pull quote ──────────────────────────────────────────────────────── */
+.me-quote {
+  border-left: 3px solid; /* colour comes from inline style */
+  padding-left: 1.4rem;
+  margin: 0 0 2rem;
+  max-width: 620px;
+}
+
+.me-quote p {
+  font-family: var(--sans);
+  font-size: clamp(1rem, 1.8vw, 1.3rem);
+  font-style: italic;
+  line-height: 1.55;
+  color: var(--off);
+  margin: 0 0 0.6rem;
+  font-weight: 400;
+}
+
+.me-quote cite {
+  font-family: var(--mono);
+  font-size: 0.6rem;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  color: rgba(255,255,255,0.38);
+  font-style: normal;
+}
+
+/* ── CTA block (inauguration only) ──────────────────────────────────── */
+.me-cta {
+  margin-top: 1rem;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 0.8rem;
+}
+
+.me-cta-link {
+  font-family: var(--sans);
+  font-size: 0.78rem;
+  font-weight: 700;
+  letter-spacing: 0.18em;
+  text-transform: uppercase;
+  color: var(--white);
+  text-decoration: none;
+  border: 1px solid rgba(255,255,255,0.45);
+  padding: 0.7rem 1.8rem;
+  pointer-events: all;
+  cursor: pointer;
+  transition: background 0.2s, border-color 0.2s, color 0.2s;
+}
+
+.me-cta-link:hover {
+  background: var(--white);
+  color: var(--void);
+  border-color: var(--white);
+}
+
+.me-cta-sub {
+  font-family: var(--mono);
+  font-size: 0.62rem;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  color: rgba(255,255,255,0.38);
+  margin: 0;
+}
+
+/* ── Title chapter overrides ─────────────────────────────────────────── */
+.me-chapter--valign-center.me-chapter--center .me-headline {
+  font-size: clamp(5rem, 14vw, 14rem);
+}
+
+/* ── Scroll hint ─────────────────────────────────────────────────────── */
+.me-scroll-hint {
+  position: fixed;
+  bottom: 2rem;
+  left: 50%;
+  transform: translateX(-50%);
+  z-index: 6000;
+  font-family: var(--mono);
+  font-size: 0.58rem;
+  letter-spacing: 0.22em;
+  text-transform: uppercase;
+  color: rgba(255,255,255,0.3);
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 0.4rem;
+  animation: hint-fade 3s ease-in-out infinite;
+  pointer-events: none;
+}
+
+@keyframes hint-fade {
+  0%, 100% { opacity: 0.3; }
+  50%       { opacity: 0.75; }
+}
+
+.me-scroll-hint svg {
+  animation: hint-drop 2.4s ease-in-out infinite;
+}
+
+@keyframes hint-drop {
+  0%, 100% { transform: translateY(0); }
+  55%       { transform: translateY(5px); }
+}
+
+/* ════════════════════════════════════════════════════════════════════
+   TITLE CHAPTER specific — override flex layout to be centered
+════════════════════════════════════════════════════════════════════ */
+
+/* The title chapter (#0) content overrides for centered dramatic display */
+.me-chapter:first-of-type .me-headline {
+  font-size: clamp(5.5rem, 14vw, 14rem);
+  text-align: center;
+  align-items: center;
+}
+
+/* ── Mobile ──────────────────────────────────────────────────────────── */
+@media (max-width: 640px) {
+  .me-nav    { display: none; }
+  .me-chapter--right {
+    padding-left: 1.5rem;
+    padding-right: 1.5rem;
+    align-items: flex-start;
+    text-align: left;
+  }
+  .me-headline { font-size: clamp(3.5rem, 16vw, 7rem); }
+  .me-stat-number { font-size: clamp(4rem, 18vw, 8rem); }
+  .me-body { max-width: 100%; }
+}

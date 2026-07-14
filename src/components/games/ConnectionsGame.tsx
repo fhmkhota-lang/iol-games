@@ -1,0 +1,197 @@
+import { useState, useMemo } from 'react';
+import { ArrowLeft, CheckCircle2, X } from 'lucide-react';
+import { getTodayString, dateToSeed, seededShuffle } from '../../utils/seed';
+import { CONNECTIONS_PUZZLES } from '../../data/connectionsData';
+import { useLocalStorage } from '../../hooks/useLocalStorage';
+import { useGameStore } from '../../hooks/useGameStore';
+import { ShareButton } from '../ui/ShareButton';
+import { buildConnectionsShare } from '../../utils/share';
+import type { ConnectionsCategory } from '../../types';
+
+const TODAY = getTodayString();
+const SEED = dateToSeed(TODAY);
+const PUZZLE = CONNECTIONS_PUZZLES[SEED % CONNECTIONS_PUZZLES.length];
+
+interface SavedState {
+  date: string;
+  solved: string[];         // category labels solved
+  solvedOrder: string[];    // emoji lines in order
+  attempts: number;
+  gameOver: boolean;
+  won: boolean;
+}
+
+const DEFAULT: SavedState = {
+  date: TODAY, solved: [], solvedOrder: [], attempts: 0, gameOver: false, won: false,
+};
+
+const COLOR_MAP: Record<ConnectionsCategory['color'], string> = {
+  yellow: 'bg-yellow-500',
+  green:  'bg-green-500',
+  blue:   'bg-blue-500',
+  purple: 'bg-purple-600',
+};
+
+const LIVES = 4;
+
+export function ConnectionsGame({ onBack }: { onBack: () => void }) {
+  const [saved, setSaved] = useLocalStorage<SavedState>('iol_connections_state', DEFAULT);
+  const { completeGame } = useGameStore();
+  const [selected, setSelected] = useState<string[]>([]);
+  const [wrongAnim, setWrongAnim] = useState(false);
+
+  const state = saved.date === TODAY ? saved : DEFAULT;
+  const remaining = useMemo(() => PUZZLE.filter((c) => !state.solved.includes(c.label)), [state.solved]);
+  const shuffledWords = useMemo(
+    () => seededShuffle(remaining.flatMap((c) => c.words), SEED + state.solved.length),
+    [remaining, state.solved.length]
+  );
+
+  function toggle(word: string) {
+    if (state.gameOver) return;
+    setSelected((prev) =>
+      prev.includes(word) ? prev.filter((w) => w !== word) : prev.length < 4 ? [...prev, word] : prev
+    );
+  }
+
+  function submit() {
+    if (selected.length !== 4) return;
+    const match = remaining.find((c) => selected.every((w) => c.words.includes(w)));
+
+    if (match) {
+      const newSolved = [...state.solved, match.label];
+      const emojiLine = `${match.emoji} ${match.label.toUpperCase()}`;
+      const newOrder = [...state.solvedOrder, emojiLine];
+      const won = newSolved.length === PUZZLE.length;
+      const update: SavedState = {
+        ...state,
+        solved: newSolved,
+        solvedOrder: newOrder,
+        gameOver: won,
+        won,
+        attempts: state.attempts + 1,
+      };
+      setSaved(update);
+      setSelected([]);
+      if (won) completeGame('connections', true, { attempts: state.attempts + 1 });
+    } else {
+      const newAttempts = state.attempts + 1;
+      const lost = LIVES - newAttempts <= 0;
+      setWrongAnim(true);
+      setTimeout(() => setWrongAnim(false), 600);
+      const update: SavedState = { ...state, attempts: newAttempts, gameOver: lost, won: false };
+      setSaved(update);
+      if (lost) {
+        setSelected([]);
+        completeGame('connections', false, { attempts: newAttempts });
+      }
+    }
+  }
+
+  const mistakes = state.attempts - state.solved.length;
+  const livesRemaining = LIVES - mistakes;
+
+  const shareText = buildConnectionsShare(TODAY, state.attempts, state.won, state.solvedOrder);
+
+  return (
+    <div className="min-h-screen bg-[#111] text-white flex flex-col">
+      <header className="border-b border-white/10 flex items-center justify-between px-4 py-3">
+        <button onClick={onBack} className="text-gray-400 hover:text-white p-1"><ArrowLeft size={20} /></button>
+        <div className="text-center">
+          <h1 className="font-bold text-base">IOL Connections</h1>
+          <p className="text-gray-500 text-xs">Group the words into 4 categories</p>
+        </div>
+        <div className="w-8" />
+      </header>
+
+      <main className="flex-1 max-w-lg mx-auto w-full px-4 py-5 flex flex-col gap-4">
+        {/* Lives */}
+        <div className="flex items-center justify-between">
+          <p className="text-sm text-gray-400">Mistakes remaining:</p>
+          <div className="flex gap-1.5">
+            {Array.from({ length: LIVES }).map((_, i) => (
+              <div
+                key={i}
+                className={`w-4 h-4 rounded-full transition-colors ${
+                  i < livesRemaining ? 'bg-iol-red' : 'bg-white/10'
+                }`}
+              />
+            ))}
+          </div>
+        </div>
+
+        {/* Solved categories */}
+        {state.solved.map((label) => {
+          const cat = PUZZLE.find((c) => c.label === label)!;
+          return (
+            <div key={label} className={`${COLOR_MAP[cat.color]} rounded-xl p-4 text-center bounce-in`}>
+              <p className="font-bold text-white text-sm uppercase tracking-wide">{cat.label}</p>
+              <p className="text-white/80 text-xs mt-1">{cat.words.join(' · ')}</p>
+            </div>
+          );
+        })}
+
+        {/* Word grid */}
+        {!state.gameOver && (
+          <div className={`grid grid-cols-4 gap-2 ${wrongAnim ? 'shake' : ''}`}>
+            {shuffledWords.map((word) => {
+              const isSel = selected.includes(word);
+              return (
+                <button
+                  key={word}
+                  onClick={() => toggle(word)}
+                  className={`py-3 px-1 rounded-xl text-xs sm:text-sm font-bold uppercase text-center transition-all active:scale-95 ${
+                    isSel ? 'bg-white text-black' : 'bg-[#2a2a2a] text-white hover:bg-[#3a3a3a]'
+                  }`}
+                >
+                  {word}
+                </button>
+              );
+            })}
+          </div>
+        )}
+
+        {/* Controls */}
+        {!state.gameOver && (
+          <div className="flex gap-2 justify-center">
+            <button
+              onClick={() => setSelected([])}
+              className="px-5 py-2 border border-white/20 rounded-lg text-sm text-gray-300 hover:bg-white/5 transition-colors"
+            >
+              Deselect all
+            </button>
+            <button
+              onClick={submit}
+              disabled={selected.length !== 4}
+              className="px-5 py-2 bg-white text-black rounded-lg text-sm font-semibold disabled:opacity-30 transition-opacity"
+            >
+              Submit
+            </button>
+          </div>
+        )}
+
+        {/* Result */}
+        {state.gameOver && (
+          <div className={`rounded-xl p-4 text-center ${state.won ? 'bg-green-500/10 border border-green-500/30' : 'bg-red-500/10 border border-red-500/30'}`}>
+            <div className="flex items-center justify-center gap-2 mb-2">
+              {state.won
+                ? <CheckCircle2 size={20} className="text-green-400" />
+                : <X size={20} className="text-red-400" />}
+              <span className="font-bold">{state.won ? 'Connections found!' : 'Better luck tomorrow'}</span>
+            </div>
+            {!state.won && (
+              <div className="mt-2 space-y-1">
+                {PUZZLE.filter((c) => !state.solved.includes(c.label)).map((c) => (
+                  <p key={c.label} className="text-xs text-gray-400">{c.emoji} {c.label}: {c.words.join(', ')}</p>
+                ))}
+              </div>
+            )}
+            <div className="mt-3">
+              <ShareButton text={shareText} gameName="Connections" resultLine={`${state.won ? '✅' : '❌'} ${TODAY}`} emojiGrid={state.solvedOrder.join('\n')} />
+            </div>
+          </div>
+        )}
+      </main>
+    </div>
+  );
+}
