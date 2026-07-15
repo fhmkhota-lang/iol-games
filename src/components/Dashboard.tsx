@@ -403,16 +403,15 @@ export function Dashboard() {
               <h1
                 style={{
                   fontFamily: '"Playfair Display", Georgia, serif',
-                  fontSize: 'clamp(28px, 6vw, 52px)',
+                  fontSize: 'clamp(22px, 5vw, 44px)',
                   fontWeight: 900,
-                  lineHeight: 0.88,
+                  lineHeight: 1,
                   letterSpacing: '-0.03em',
                   color: 'var(--ink)',
+                  whiteSpace: 'nowrap',
                 }}
               >
-                Daily
-                <br />
-                <em style={{ fontStyle: 'italic', color: 'var(--red)' }}>Games</em>
+                Daily <em style={{ fontStyle: 'italic', color: 'var(--red)' }}>Games</em>
               </h1>
             </div>
 
