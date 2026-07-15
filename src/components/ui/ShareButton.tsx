@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { Share2, Check, Copy } from 'lucide-react';
+import { Share2, Check } from 'lucide-react';
 import { copyToClipboard } from '../../utils/share';
 
 interface ShareButtonProps {
@@ -36,7 +36,7 @@ function InstagramIcon() {
 
 const SITE_URL = 'https://fhmkhota-lang.github.io/iol-games/';
 
-export function ShareButton({ text, gameName, resultLine, emojiGrid = '', className = '' }: ShareButtonProps) {
+export function ShareButton({ text, gameName, resultLine, className = '' }: ShareButtonProps) {
   const [open, setOpen] = useState(false);
   const [igCopied, setIgCopied] = useState(false);
 
