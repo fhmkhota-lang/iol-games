@@ -21,7 +21,7 @@ const GAMES: {
   {
     id: 'wordle',
     number: '01',
-    name: 'Wordle',
+    name: 'Wordy',
     tagline: 'Guess the five-letter word in six tries',
     category: 'Word Puzzle',
   },

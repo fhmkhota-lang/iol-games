@@ -34,7 +34,7 @@ export function buildWordleShare(
       .join('')
   );
   const tries = won ? `${guesses.length}/6` : 'X/6';
-  return `IOL Wordle ${date} ${tries}\n\n${lines.join('\n')}\n\nPlay at iol.co.za/games`;
+  return `IOL Wordy ${date} ${tries}\n\n${lines.join('\n')}\n\nPlay at iol.co.za/games`;
 }
 
 export function buildConnectionsShare(

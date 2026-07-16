@@ -165,7 +165,7 @@ export function WordleGame({ onBack }: { onBack: () => void }) {
           <ArrowLeft size={20} />
         </button>
         <div className="text-center">
-          <h1 className="font-bold text-base">IOL Wordle</h1>
+          <h1 className="font-bold text-base">IOL Wordy</h1>
           <p className="text-gray-500 text-xs">{TODAY}</p>
         </div>
         <div className="w-8" />
@@ -209,7 +209,7 @@ export function WordleGame({ onBack }: { onBack: () => void }) {
         <div className="flex flex-col items-center gap-3 pb-4">
           <ShareButton
             text={shareText}
-            gameName="Wordle"
+            gameName="Wordy"
             resultLine={`${state.won ? state.guesses.length + '/6' : 'X/6'} — ${TODAY}`}
             emojiGrid={emojiGrid}
           />
