@@ -1,6 +1,7 @@
 import { useState, useEffect, useCallback, useRef } from 'react';
-import { ArrowLeft } from 'lucide-react';
+import { ArrowLeft, HelpCircle } from 'lucide-react';
 import { Confetti } from '../ui/Confetti';
+import { HowToPlay } from '../ui/HowToPlay';
 import { getTodayString, dateToSeed } from '../../utils/seed';
 import { WORDLE_WORDS } from '../../data/wordleWords';
 import { useLocalStorage } from '../../hooks/useLocalStorage';
@@ -67,6 +68,7 @@ export function WordleGame({ onBack }: { onBack: () => void }) {
   const { completeGame } = useGameStore();
   const [shake, setShake] = useState(false);
   const [msg, setMsg] = useState('');
+  const [showHelp, setShowHelp] = useState(false);
 
   const state = saved.date === TODAY ? saved : EMPTY;
   const answer = state.answer || FALLBACK_ANSWER;
@@ -164,9 +166,19 @@ export function WordleGame({ onBack }: { onBack: () => void }) {
     getLetterState(g, answer).map((ls) => ls === 'correct' ? '🟩' : ls === 'present' ? '🟨' : '⬛').join('')
   ).join('\n');
 
+  const WORDY_STEPS = [
+    { icon: '🔤', text: 'Guess the 5-letter word in 6 tries.' },
+    { icon: '🟩', text: 'Green: the letter is correct and in the right spot.' },
+    { icon: '🟨', text: 'Yellow: the letter is in the word but in the wrong spot.' },
+    { icon: '⬛', text: 'Grey: the letter is not in the word at all.' },
+    { icon: '⌨️', text: 'Type on your keyboard or tap the on-screen keys. Press Enter to submit.' },
+    { icon: '📅', text: 'One new word every day — come back tomorrow for the next!' },
+  ];
+
   return (
     <div className="min-h-screen text-white flex flex-col" style={{ background: 'linear-gradient(160deg, #0f0c29 0%, #302b63 50%, #24243e 100%)' }}>
       {state.won && <Confetti />}
+      {showHelp && <HowToPlay title="IOL Wordy" accentColor="#a855f7" steps={WORDY_STEPS} onClose={() => setShowHelp(false)} />}
 
       {/* Accent bar */}
       <div style={{ height: 3, background: 'linear-gradient(90deg, #7c3aed, #a855f7, #7c3aed)' }} />
@@ -179,7 +191,7 @@ export function WordleGame({ onBack }: { onBack: () => void }) {
           <h1 className="font-bold text-base tracking-wide" style={{ color: '#c4b5fd' }}>IOL Wordy</h1>
           <p className="text-slate-500 text-xs">{TODAY}</p>
         </div>
-        <div className="w-8" />
+        <button onClick={() => setShowHelp(true)} className="text-slate-400 hover:text-white p-1"><HelpCircle size={20} /></button>
       </header>
 
       {msg && (

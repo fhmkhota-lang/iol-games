@@ -1,6 +1,7 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { ArrowLeft, RotateCcw, CheckCircle2 } from 'lucide-react';
+import { ArrowLeft, RotateCcw, CheckCircle2, HelpCircle } from 'lucide-react';
 import { Confetti } from '../ui/Confetti';
+import { HowToPlay } from '../ui/HowToPlay';
 import { getTodayString } from '../../utils/seed';
 import { generateDailySudoku, checkSudoku, isCellValid } from '../../utils/sudoku';
 import { dateToSeed } from '../../utils/seed';
@@ -43,6 +44,7 @@ export function SudokuGame({ onBack }: { onBack: () => void }) {
   const [saved, setSaved] = useLocalStorage<SudokuSaved>('iol_sudoku_state', DEFAULT);
   const { completeGame } = useGameStore();
   const [selected, setSelected] = useState<[number, number] | null>(null);
+  const [showHelp, setShowHelp] = useState(false);
   const [elapsed, setElapsed] = useState(0);
   const timerRef = useRef<ReturnType<typeof setInterval> | null>(null);
 
@@ -133,9 +135,19 @@ export function SudokuGame({ onBack }: { onBack: () => void }) {
 
   const shareText = buildSudokuShare(TODAY, displayTime, state.won);
 
+  const SUDOKU_STEPS = [
+    { icon: '🔢', text: 'Fill the 9×9 grid so every row, column, and 3×3 box contains the digits 1–9.' },
+    { icon: '👆', text: 'Tap a cell to select it, then tap a number button to fill it in.' },
+    { icon: '🟦', text: 'Teal highlight shows related cells (same row, column, or box).' },
+    { icon: '🔴', text: 'Red means the number conflicts with another cell — fix it!' },
+    { icon: '🩵', text: 'Teal number means the digit is correctly placed.' },
+    { icon: '🗑️', text: 'Tap Erase to clear a cell you filled in.' },
+  ];
+
   return (
     <div className="min-h-screen text-white flex flex-col" style={{ background: 'linear-gradient(160deg, #061622 0%, #0d2137 60%, #0a1e2e 100%)' }}>
       {state.won && <Confetti />}
+      {showHelp && <HowToPlay title="IOL Sudoku" accentColor="#14b8a6" steps={SUDOKU_STEPS} onClose={() => setShowHelp(false)} />}
       <div style={{ height: 3, background: 'linear-gradient(90deg, #0d9488, #14b8a6, #0d9488)' }} />
 
       <header className="flex items-center justify-between px-4 py-3" style={{ borderBottom: '1px solid rgba(20,184,166,0.2)' }}>
@@ -144,7 +156,10 @@ export function SudokuGame({ onBack }: { onBack: () => void }) {
           <h1 className="font-bold text-base tracking-wide" style={{ color: '#2dd4bf' }}>IOL Sudoku</h1>
           <p className="text-slate-400 text-sm font-mono">{mins}:{secs}</p>
         </div>
-        <button onClick={reset} className="text-slate-400 hover:text-white p-1"><RotateCcw size={18} /></button>
+        <div className="flex gap-1">
+          <button onClick={() => setShowHelp(true)} className="text-slate-400 hover:text-white p-1"><HelpCircle size={20} /></button>
+          <button onClick={reset} className="text-slate-400 hover:text-white p-1"><RotateCcw size={18} /></button>
+        </div>
       </header>
 
       {state.won && (

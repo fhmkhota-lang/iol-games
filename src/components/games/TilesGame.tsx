@@ -1,6 +1,7 @@
 import { useState, useEffect, useRef, useCallback } from 'react';
-import { ArrowLeft, CheckCircle2, X, Eye } from 'lucide-react';
+import { ArrowLeft, CheckCircle2, X, Eye, HelpCircle } from 'lucide-react';
 import { Confetti } from '../ui/Confetti';
+import { HowToPlay } from '../ui/HowToPlay';
 import { getTodayString, dateToSeed, createRng } from '../../utils/seed';
 import { useLocalStorage } from '../../hooks/useLocalStorage';
 import { useGameStore } from '../../hooks/useGameStore';
@@ -33,6 +34,7 @@ type Phase = 'idle' | 'showing' | 'answering' | 'feedback' | 'done';
 export function TilesGame({ onBack }: { onBack: () => void }) {
   const [saved, setSaved] = useLocalStorage<SavedState>('iol_tiles_state', DEFAULT);
   const { completeGame } = useGameStore();
+  const [showHelp, setShowHelp] = useState(false);
 
   const [phase, setPhase] = useState<Phase>(() => (saved.date === TODAY && saved.played ? 'done' : 'idle'));
   const [round, setRound] = useState(0);
@@ -142,8 +144,18 @@ export function TilesGame({ onBack }: { onBack: () => void }) {
 
   const displayPattern = phase === 'showing' || peeking ? pattern : phase === 'answering' || phase === 'feedback' ? userPattern : pattern;
 
+  const TILES_STEPS = [
+    { icon: '👀', text: 'Study the colour pattern shown on the grid — you have 1.5 seconds!' },
+    { icon: '🎨', text: 'After the pattern hides, select a colour from the palette and tap the cells to paint them.' },
+    { icon: '✅', text: 'Hit Submit when you think you\'ve matched the pattern. You score points for each correct cell.' },
+    { icon: '👁️', text: 'Use Peek (2 per game) to show the pattern again for 1.5 seconds — use them wisely!' },
+    { icon: '🔄', text: 'There are 5 rounds — your total score out of 100 is saved at the end.' },
+    { icon: '📅', text: 'Patterns are unique each day. Come back tomorrow for a new challenge!' },
+  ];
+
   return (
     <div className="min-h-screen text-white flex flex-col" style={{ background: 'linear-gradient(160deg, #0a0a1a 0%, #1a0829 60%, #0d0a1e 100%)' }}>
+      {showHelp && <HowToPlay title="IOL Tiles" accentColor="#f59e0b" steps={TILES_STEPS} onClose={() => setShowHelp(false)} />}
       <div style={{ height: 3, background: 'linear-gradient(90deg,#E8141C,#f59e0b,#16a34a,#2563eb,#9333ea,#0891b2)' }} />
 
       <header className="flex items-center justify-between px-4 py-3" style={{ borderBottom: '1px solid rgba(255,255,255,0.08)' }}>
@@ -153,7 +165,7 @@ export function TilesGame({ onBack }: { onBack: () => void }) {
           {phase === 'answering' && <p className="text-slate-400 text-xs">Round {round + 1}/{ROUNDS} · {(elapsed / 1000).toFixed(1)}s</p>}
           {phase !== 'answering' && <p className="text-slate-500 text-xs">{TODAY}</p>}
         </div>
-        <div className="w-8" />
+        <button onClick={() => setShowHelp(true)} className="text-slate-400 hover:text-white p-1"><HelpCircle size={20} /></button>
       </header>
 
       <main className="flex-1 max-w-lg mx-auto w-full px-4 py-5 flex flex-col items-center gap-5">

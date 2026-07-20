@@ -1,6 +1,7 @@
 import { useState, useMemo, useEffect } from 'react';
-import { ArrowLeft, CheckCircle2, X, Lightbulb } from 'lucide-react';
+import { ArrowLeft, CheckCircle2, X, Lightbulb, HelpCircle } from 'lucide-react';
 import { Confetti } from '../ui/Confetti';
+import { HowToPlay } from '../ui/HowToPlay';
 import { getTodayString, dateToSeed, seededShuffle } from '../../utils/seed';
 import { CONNECTIONS_PUZZLES } from '../../data/connectionsData';
 import { useLocalStorage } from '../../hooks/useLocalStorage';
@@ -62,6 +63,7 @@ export function ConnectionsGame({ onBack }: { onBack: () => void }) {
   const [wrongAnim, setWrongAnim] = useState(false);
   const [hintsLeft, setHintsLeft] = useState(2);
   const [hintWord, setHintWord] = useState<string | null>(null);
+  const [showHelp, setShowHelp] = useState(false);
 
   const state = saved.date === TODAY ? saved : DEFAULT;
   const puzzle = state.puzzle;
@@ -148,9 +150,19 @@ export function ConnectionsGame({ onBack }: { onBack: () => void }) {
     setTimeout(() => setHintWord(null), 3000);
   }
 
+  const CONNECTIONS_STEPS = [
+    { icon: '🔵', text: 'Find four groups of four words that share a common category.' },
+    { icon: '👆', text: 'Tap four words you think belong together, then press Submit.' },
+    { icon: '🟡', text: 'Categories range from easy (yellow) to tricky (purple).' },
+    { icon: '❤️', text: 'You have 6 lives — wrong guesses cost a life.' },
+    { icon: '💡', text: 'Stuck? Use a Hint to reveal one word from an unsolved category (2 hints per day).' },
+    { icon: '📅', text: 'A new puzzle every day — categories reset at midnight.' },
+  ];
+
   return (
     <div className="min-h-screen text-white flex flex-col" style={{ background: 'linear-gradient(160deg, #0c0a1e 0%, #1a0a2e 60%, #0f0520 100%)' }}>
       {state.gameOver && state.won && <Confetti />}
+      {showHelp && <HowToPlay title="IOL Connections" accentColor="#a855f7" steps={CONNECTIONS_STEPS} onClose={() => setShowHelp(false)} />}
       <div style={{ height: 3, background: 'linear-gradient(90deg, #7c3aed, #ec4899, #7c3aed)' }} />
 
       <header className="flex items-center justify-between px-4 py-3" style={{ borderBottom: '1px solid rgba(168,85,247,0.2)' }}>
@@ -159,7 +171,7 @@ export function ConnectionsGame({ onBack }: { onBack: () => void }) {
           <h1 className="font-bold text-base tracking-wide" style={{ color: '#d8b4fe' }}>IOL Connections</h1>
           <p className="text-slate-500 text-xs">Group words into 4 categories</p>
         </div>
-        <div className="w-8" />
+        <button onClick={() => setShowHelp(true)} className="text-slate-400 hover:text-white p-1"><HelpCircle size={20} /></button>
       </header>
 
       <main className="flex-1 max-w-lg mx-auto w-full px-4 py-4 flex flex-col gap-3">

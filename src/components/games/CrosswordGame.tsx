@@ -1,6 +1,7 @@
 import { useState, useMemo, useRef, useEffect, useCallback } from 'react';
-import { ArrowLeft, CheckCircle2 } from 'lucide-react';
+import { ArrowLeft, CheckCircle2, HelpCircle } from 'lucide-react';
 import { Confetti } from '../ui/Confetti';
+import { HowToPlay } from '../ui/HowToPlay';
 import { getTodayString, dateToSeed, createRng } from '../../utils/seed';
 import { CROSSWORD_WORDS } from '../../data/crosswordWords';
 import { generateCrossword } from '../../utils/crosswordGenerator';
@@ -33,6 +34,7 @@ export function CrosswordGame({ onBack }: { onBack: () => void }) {
   const { completeGame } = useGameStore();
   const [selected, setSelected] = useState<[number, number] | null>(null);
   const [direction, setDirection] = useState<'across' | 'down'>('across');
+  const [showHelp, setShowHelp] = useState(false);
 
   const inputRef = useRef<HTMLInputElement>(null);
 
@@ -200,9 +202,19 @@ export function CrosswordGame({ onBack }: { onBack: () => void }) {
     );
   };
 
+  const CROSSWORD_STEPS = [
+    { icon: '🔤', text: 'Tap any white cell to select it, then type or tap a letter to fill it in.' },
+    { icon: '↔️', text: 'Tap the same cell twice to switch between Across and Down direction.' },
+    { icon: '📋', text: 'The active clue is shown below the grid. All clues are listed in the right panel.' },
+    { icon: '🟡', text: 'Gold cell = your selected cell. Amber highlight = the active word.' },
+    { icon: '🟩', text: 'Green = correctly placed letter. Red = wrong letter.' },
+    { icon: '⌫', text: 'Tap ⌫ on the keyboard to erase the current cell and step back.' },
+  ];
+
   return (
     <div className="min-h-screen text-white flex flex-col" style={{ background: 'linear-gradient(160deg, #14100a 0%, #1e1408 60%, #0d0a05 100%)' }}>
       {state.won && <Confetti />}
+      {showHelp && <HowToPlay title="IOL Crossword" accentColor="#f59e0b" steps={CROSSWORD_STEPS} onClose={() => setShowHelp(false)} />}
       <div style={{ height: 3, background: 'linear-gradient(90deg, #d97706, #f59e0b, #d97706)' }} />
       <input ref={inputRef} className="absolute opacity-0 w-0 h-0 pointer-events-none" onKeyDown={handleKey} readOnly inputMode="text" />
 
@@ -212,7 +224,7 @@ export function CrosswordGame({ onBack }: { onBack: () => void }) {
           <h1 className="font-bold text-base tracking-wide" style={{ color: '#fbbf24' }}>IOL Crossword</h1>
           <p className="text-slate-500 text-xs">{TODAY}</p>
         </div>
-        <div className="w-8" />
+        <button onClick={() => setShowHelp(true)} className="text-slate-400 hover:text-white p-1"><HelpCircle size={20} /></button>
       </header>
 
       {state.won && (
