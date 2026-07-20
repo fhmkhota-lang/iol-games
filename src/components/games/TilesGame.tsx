@@ -143,57 +143,73 @@ export function TilesGame({ onBack }: { onBack: () => void }) {
   const displayPattern = phase === 'showing' || peeking ? pattern : phase === 'answering' || phase === 'feedback' ? userPattern : pattern;
 
   return (
-    <div className="min-h-screen bg-[#111] text-white flex flex-col">
-      <header className="border-b border-white/10 flex items-center justify-between px-4 py-3">
-        <button onClick={onBack} className="text-gray-400 hover:text-white p-1"><ArrowLeft size={20} /></button>
+    <div className="min-h-screen text-white flex flex-col" style={{ background: 'linear-gradient(160deg, #0a0a1a 0%, #1a0829 60%, #0d0a1e 100%)' }}>
+      <div style={{ height: 3, background: 'linear-gradient(90deg,#E8141C,#f59e0b,#16a34a,#2563eb,#9333ea,#0891b2)' }} />
+
+      <header className="flex items-center justify-between px-4 py-3" style={{ borderBottom: '1px solid rgba(255,255,255,0.08)' }}>
+        <button onClick={onBack} className="text-slate-400 hover:text-white p-1"><ArrowLeft size={20} /></button>
         <div className="text-center">
-          <h1 className="font-bold text-base">IOL Tiles</h1>
-          {phase === 'answering' && (
-            <p className="text-gray-400 text-xs">Round {round + 1}/{ROUNDS} · {(elapsed / 1000).toFixed(1)}s</p>
-          )}
-          {phase !== 'answering' && <p className="text-gray-500 text-xs">{TODAY}</p>}
+          <h1 className="font-bold text-base tracking-wide" style={{ background: 'linear-gradient(90deg,#f59e0b,#ec4899)', WebkitBackgroundClip: 'text', WebkitTextFillColor: 'transparent' }}>IOL Tiles</h1>
+          {phase === 'answering' && <p className="text-slate-400 text-xs">Round {round + 1}/{ROUNDS} · {(elapsed / 1000).toFixed(1)}s</p>}
+          {phase !== 'answering' && <p className="text-slate-500 text-xs">{TODAY}</p>}
         </div>
         <div className="w-8" />
       </header>
 
       <main className="flex-1 max-w-lg mx-auto w-full px-4 py-5 flex flex-col items-center gap-5">
         {phase === 'idle' && (
-          <div className="flex-1 flex flex-col items-center justify-center text-center gap-4">
-            <p className="text-4xl">🎨</p>
-            <h2 className="text-xl font-bold">IOL Tiles</h2>
-            <p className="text-gray-400 text-sm max-w-xs">
-              Memorise the colour pattern, then recreate it from memory.
-              {ROUNDS} rounds, {SHOW_MS / 1000} second each to study.
+          <div className="flex-1 flex flex-col items-center justify-center text-center gap-5">
+            <div className="text-6xl">🎨</div>
+            <h2 className="text-2xl font-black">IOL Tiles</h2>
+            <p className="text-slate-400 text-sm max-w-xs leading-relaxed">
+              Memorise the colour pattern, then recreate it from memory. {ROUNDS} rounds, {SHOW_MS / 1000} second each to study.
             </p>
-            <button onClick={startGame} className="bg-iol-red text-white font-semibold px-8 py-3 rounded-xl mt-2 hover:bg-red-700 transition-colors">
-              Start
+            <button onClick={startGame}
+              className="font-bold px-10 py-3 rounded-2xl mt-2 transition-all active:scale-95 hover:scale-105 text-white"
+              style={{ background: 'linear-gradient(135deg,#E8141C,#f59e0b)', boxShadow: '0 8px 24px rgba(232,20,28,0.4)' }}>
+              Start Playing
             </button>
           </div>
         )}
 
         {(phase === 'showing' || phase === 'answering' || phase === 'feedback') && (
           <>
-            {/* Phase label */}
             <div className="text-center">
-              {phase === 'showing' && <p className="text-yellow-400 font-semibold animate-pulse">Memorise this pattern!</p>}
-              {phase === 'answering' && <p className="text-white font-semibold">Recreate the pattern</p>}
+              {phase === 'showing' && (
+                <p className="font-bold animate-pulse text-base" style={{ color: '#fbbf24' }}>👀 Memorise this pattern!</p>
+              )}
+              {phase === 'answering' && <p className="text-white font-semibold text-base">Recreate the pattern</p>}
               {phase === 'feedback' && (
-                <p className={allCorrect ? 'text-green-400 font-semibold' : 'text-orange-400 font-semibold'}>
+                <p className="font-bold text-base" style={{ color: allCorrect ? '#34d399' : '#fb923c' }}>
                   {allCorrect ? '✅ Perfect!' : `${userPattern.filter((v, i) => v === pattern[i]).length}/${GRID * GRID} correct`}
                 </p>
               )}
             </div>
 
+            {/* Round progress dots */}
+            <div className="flex gap-2">
+              {Array.from({ length: ROUNDS }).map((_, i) => (
+                <div key={i} className="w-2 h-2 rounded-full transition-all"
+                  style={{ background: i < round ? '#34d399' : i === round ? '#fff' : 'rgba(255,255,255,0.15)', transform: i === round ? 'scale(1.4)' : 'scale(1)' }} />
+              ))}
+            </div>
+
             {/* Grid */}
-            <div className="grid grid-cols-4 gap-1.5">
+            <div className="grid grid-cols-4 gap-2 p-3 rounded-2xl" style={{ background: 'rgba(255,255,255,0.04)', border: '1px solid rgba(255,255,255,0.08)' }}>
               {displayPattern.map((colorIdx, i) => {
                 const isWrong = phase === 'feedback' && userPattern[i] !== pattern[i];
+                const isRight = phase === 'feedback' && userPattern[i] === pattern[i];
                 return (
                   <button
                     key={i}
                     onClick={() => paintCell(i)}
-                    className={`w-16 h-16 sm:w-18 sm:h-18 rounded-lg transition-all game-cell ${isWrong ? 'ring-2 ring-red-500' : ''}`}
-                    style={{ backgroundColor: colorIdx >= 0 ? COLORS[colorIdx] : '#2a2a2a' }}
+                    className="w-16 h-16 rounded-xl transition-all active:scale-90 game-cell"
+                    style={{
+                      backgroundColor: colorIdx >= 0 ? COLORS[colorIdx] : 'rgba(255,255,255,0.06)',
+                      boxShadow: colorIdx >= 0 ? `0 4px 16px ${COLORS[colorIdx]}55` : 'none',
+                      outline: isWrong ? '3px solid #f87171' : isRight && phase === 'feedback' ? '2px solid #34d399' : 'none',
+                      outlineOffset: 2,
+                    }}
                   />
                 );
               })}
@@ -207,25 +223,25 @@ export function TilesGame({ onBack }: { onBack: () => void }) {
                     <button
                       key={i}
                       onClick={() => setSelectedColor(i)}
-                      className={`w-10 h-10 rounded-lg transition-all ${selectedColor === i ? 'ring-2 ring-white scale-110' : 'opacity-80 hover:opacity-100'}`}
-                      style={{ backgroundColor: color }}
+                      className="w-11 h-11 rounded-xl transition-all active:scale-90"
+                      style={{
+                        backgroundColor: color,
+                        boxShadow: selectedColor === i ? `0 0 0 3px #fff, 0 0 0 5px ${color}` : `0 4px 12px ${color}55`,
+                        transform: selectedColor === i ? 'scale(1.15)' : 'scale(1)',
+                      }}
                     />
                   ))}
                 </div>
                 <div className="flex items-center gap-3">
-                  <button
-                    onClick={usePeek}
-                    disabled={peeksLeft <= 0 || peeking}
-                    className="flex items-center gap-1.5 px-4 py-2 rounded-lg text-sm font-semibold transition-all disabled:opacity-30"
-                    style={{ background: peeking ? '#CA8A04' : 'rgba(255,255,255,0.12)', color: peeking ? '#fff' : '#fff' }}
-                  >
+                  <button onClick={usePeek} disabled={peeksLeft <= 0 || peeking}
+                    className="flex items-center gap-1.5 px-4 py-2 rounded-xl text-sm font-semibold transition-all disabled:opacity-30 active:scale-95"
+                    style={{ background: peeking ? 'rgba(251,191,36,0.3)' : 'rgba(255,255,255,0.1)', border: '1px solid rgba(255,255,255,0.15)', color: '#fbbf24' }}>
                     <Eye size={14} />
                     Peek ({peeksLeft} left)
                   </button>
-                  <button
-                    onClick={submitRound}
-                    className="bg-white text-black font-semibold px-8 py-2.5 rounded-xl hover:bg-gray-100 transition-colors"
-                  >
+                  <button onClick={submitRound}
+                    className="font-bold px-8 py-2.5 rounded-xl transition-all active:scale-95 text-white"
+                    style={{ background: 'linear-gradient(135deg,#7c3aed,#a855f7)', boxShadow: '0 4px 16px rgba(124,58,237,0.4)' }}>
                     Submit
                   </button>
                 </div>

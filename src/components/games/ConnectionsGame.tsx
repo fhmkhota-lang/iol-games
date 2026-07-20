@@ -46,11 +46,11 @@ const DEFAULT: SavedState = {
   won: false,
 };
 
-const COLOR_MAP: Record<ConnectionsCategory['color'], string> = {
-  yellow: 'bg-yellow-500',
-  green:  'bg-green-500',
-  blue:   'bg-blue-500',
-  purple: 'bg-purple-600',
+const COLOR_MAP: Record<ConnectionsCategory['color'], { bg: string; shadow: string }> = {
+  yellow: { bg: 'linear-gradient(135deg,#d97706,#f59e0b)', shadow: 'rgba(245,158,11,0.35)' },
+  green:  { bg: 'linear-gradient(135deg,#15803d,#22c55e)', shadow: 'rgba(34,197,94,0.35)' },
+  blue:   { bg: 'linear-gradient(135deg,#1d4ed8,#3b82f6)', shadow: 'rgba(59,130,246,0.35)' },
+  purple: { bg: 'linear-gradient(135deg,#7e22ce,#a855f7)', shadow: 'rgba(168,85,247,0.35)' },
 };
 
 const LIVES = 6;
@@ -149,34 +149,32 @@ export function ConnectionsGame({ onBack }: { onBack: () => void }) {
   }
 
   return (
-    <div className="min-h-screen bg-[#111] text-white flex flex-col">
+    <div className="min-h-screen text-white flex flex-col" style={{ background: 'linear-gradient(160deg, #0c0a1e 0%, #1a0a2e 60%, #0f0520 100%)' }}>
       {state.gameOver && state.won && <Confetti />}
-      <header className="border-b border-white/10 flex items-center justify-between px-4 py-3">
-        <button onClick={onBack} className="text-gray-400 hover:text-white p-1"><ArrowLeft size={20} /></button>
+      <div style={{ height: 3, background: 'linear-gradient(90deg, #7c3aed, #ec4899, #7c3aed)' }} />
+
+      <header className="flex items-center justify-between px-4 py-3" style={{ borderBottom: '1px solid rgba(168,85,247,0.2)' }}>
+        <button onClick={onBack} className="text-slate-400 hover:text-white p-1"><ArrowLeft size={20} /></button>
         <div className="text-center">
-          <h1 className="font-bold text-base">IOL Connections</h1>
-          <p className="text-gray-500 text-xs">Group the words into 4 categories</p>
+          <h1 className="font-bold text-base tracking-wide" style={{ color: '#d8b4fe' }}>IOL Connections</h1>
+          <p className="text-slate-500 text-xs">Group words into 4 categories</p>
         </div>
         <div className="w-8" />
       </header>
 
-      <main className="flex-1 max-w-lg mx-auto w-full px-4 py-5 flex flex-col gap-4">
+      <main className="flex-1 max-w-lg mx-auto w-full px-4 py-4 flex flex-col gap-3">
         <div className="flex items-center justify-between">
-          <p className="text-sm text-gray-400">Mistakes remaining:</p>
+          <p className="text-xs text-slate-400 uppercase tracking-wide">Lives remaining</p>
           <div className="flex gap-1.5">
             {Array.from({ length: LIVES }).map((_, i) => (
-              <div
-                key={i}
-                className={`w-3.5 h-3.5 rounded-full transition-colors ${
-                  i < livesRemaining ? 'bg-iol-red' : 'bg-white/10'
-                }`}
-              />
+              <div key={i} className="w-3 h-3 rounded-full transition-all"
+                style={{ background: i < livesRemaining ? '#ec4899' : 'rgba(255,255,255,0.1)', boxShadow: i < livesRemaining ? '0 0 8px rgba(236,72,153,0.5)' : 'none' }} />
             ))}
           </div>
         </div>
 
         {hintWord && (
-          <div className="bounce-in text-center text-sm py-2 px-4 rounded-lg" style={{ background: 'rgba(202,138,4,0.15)', border: '1px solid rgba(202,138,4,0.4)', color: '#FCD34D' }}>
+          <div className="bounce-in text-center text-sm py-2 px-4 rounded-xl" style={{ background: 'rgba(202,138,4,0.15)', border: '1px solid rgba(202,138,4,0.4)', color: '#FCD34D' }}>
             💡 <strong>{hintWord}</strong> belongs in one of the unsolved categories
           </div>
         )}
@@ -184,9 +182,11 @@ export function ConnectionsGame({ onBack }: { onBack: () => void }) {
         {state.solved.map((label) => {
           const cat = puzzle.find((c) => c.label === label)!;
           if (!cat) return null;
+          const cm = COLOR_MAP[cat.color];
           return (
-            <div key={label} className={`${COLOR_MAP[cat.color]} rounded-xl p-4 text-center bounce-in`}>
-              <p className="font-bold text-white text-sm uppercase tracking-wide">{cat.label}</p>
+            <div key={label} className="rounded-2xl p-4 text-center bounce-in"
+              style={{ background: cm.bg, boxShadow: `0 8px 24px ${cm.shadow}` }}>
+              <p className="font-black text-white text-sm uppercase tracking-widest">{cat.label}</p>
               <p className="text-white/80 text-xs mt-1">{cat.words.join(' · ')}</p>
             </div>
           );
@@ -201,9 +201,12 @@ export function ConnectionsGame({ onBack }: { onBack: () => void }) {
                 <button
                   key={word}
                   onClick={() => toggle(word)}
-                  className={`py-3 px-1 rounded-xl text-xs sm:text-sm font-bold uppercase text-center transition-all active:scale-95 ${
-                    isSel ? 'bg-white text-black' : isHinted ? 'bg-yellow-500/30 text-yellow-200 ring-1 ring-yellow-400' : 'bg-[#2a2a2a] text-white hover:bg-[#3a3a3a]'
-                  }`}
+                  className="py-3 px-1 rounded-xl text-xs sm:text-sm font-bold uppercase text-center transition-all active:scale-95"
+                  style={isSel
+                    ? { background: 'rgba(168,85,247,0.8)', color: '#fff', border: '2px solid #a855f7', boxShadow: '0 4px 20px rgba(168,85,247,0.4)' }
+                    : isHinted
+                    ? { background: 'rgba(245,158,11,0.2)', color: '#fde68a', border: '1px solid rgba(245,158,11,0.5)' }
+                    : { background: 'rgba(255,255,255,0.06)', color: '#e2e8f0', border: '1px solid rgba(255,255,255,0.1)' }}
                 >
                   {word}
                 </button>
@@ -214,47 +217,48 @@ export function ConnectionsGame({ onBack }: { onBack: () => void }) {
 
         {!state.gameOver && (
           <div className="flex gap-2 justify-center flex-wrap">
-            <button
-              onClick={() => setSelected([])}
-              className="px-4 py-2 border border-white/20 rounded-lg text-sm text-gray-300 hover:bg-white/5 transition-colors"
-            >
+            <button onClick={() => setSelected([])}
+              className="px-4 py-2 rounded-xl text-sm text-slate-300 transition-colors"
+              style={{ background: 'rgba(255,255,255,0.06)', border: '1px solid rgba(255,255,255,0.12)' }}>
               Deselect all
             </button>
-            <button
-              onClick={useHint}
-              disabled={hintsLeft <= 0}
-              className="flex items-center gap-1.5 px-4 py-2 rounded-lg text-sm font-semibold transition-colors disabled:opacity-30"
-              style={{ background: 'rgba(202,138,4,0.2)', color: '#FCD34D', border: '1px solid rgba(202,138,4,0.3)' }}
-            >
-              <Lightbulb size={14} />
-              Hint ({hintsLeft})
+            <button onClick={useHint} disabled={hintsLeft <= 0}
+              className="flex items-center gap-1.5 px-4 py-2 rounded-xl text-sm font-semibold transition-colors disabled:opacity-30"
+              style={{ background: 'rgba(202,138,4,0.2)', color: '#FCD34D', border: '1px solid rgba(202,138,4,0.3)' }}>
+              <Lightbulb size={14} /> Hint ({hintsLeft})
             </button>
-            <button
-              onClick={submit}
-              disabled={selected.length !== 4}
-              className="px-5 py-2 bg-white text-black rounded-lg text-sm font-semibold disabled:opacity-30 transition-opacity"
-            >
+            <button onClick={submit} disabled={selected.length !== 4}
+              className="px-5 py-2 rounded-xl text-sm font-bold transition-all disabled:opacity-30 active:scale-95"
+              style={{ background: 'linear-gradient(135deg,#7c3aed,#a855f7)', color: '#fff', boxShadow: '0 4px 16px rgba(124,58,237,0.4)' }}>
               Submit
             </button>
           </div>
         )}
 
         {state.gameOver && (
-          <div className={`rounded-xl p-4 text-center bounce-in ${state.won ? 'bg-green-500/10 border border-green-500/30' : 'bg-red-500/10 border border-red-500/30'}`}>
-            <div className="flex items-center justify-center gap-2 mb-2">
-              {state.won
-                ? <CheckCircle2 size={20} className="text-green-400" />
-                : <X size={20} className="text-red-400" />}
-              <span className="font-bold">{state.won ? '🎉 Connections found!' : 'Better luck tomorrow'}</span>
+          <div className="rounded-2xl p-5 text-center bounce-in"
+            style={state.won
+              ? { background: 'rgba(16,185,129,0.1)', border: '1px solid rgba(16,185,129,0.3)' }
+              : { background: 'rgba(239,68,68,0.1)', border: '1px solid rgba(239,68,68,0.3)' }}>
+            <div className="flex items-center justify-center gap-2 mb-3">
+              {state.won ? <CheckCircle2 size={22} style={{ color: '#34d399' }} /> : <X size={22} style={{ color: '#f87171' }} />}
+              <span className="font-bold text-base">{state.won ? '🎉 Connections found!' : 'Better luck tomorrow'}</span>
             </div>
             {!state.won && (
-              <div className="mt-2 space-y-1">
-                {puzzle.filter((c) => !state.solved.includes(c.label)).map((c) => (
-                  <p key={c.label} className="text-xs text-gray-400">{c.emoji} {c.label}: {c.words.join(', ')}</p>
-                ))}
+              <div className="mt-2 space-y-1.5 mb-3">
+                {puzzle.filter((c) => !state.solved.includes(c.label)).map((c) => {
+                  const cm = COLOR_MAP[c.color];
+                  return (
+                    <div key={c.label} className="rounded-xl py-2 px-3 text-xs text-left"
+                      style={{ background: cm.bg, opacity: 0.7 }}>
+                      <span className="font-bold text-white">{c.emoji} {c.label}:</span>
+                      <span className="text-white/80 ml-1">{c.words.join(', ')}</span>
+                    </div>
+                  );
+                })}
               </div>
             )}
-            <div className="mt-3 flex justify-center">
+            <div className="flex justify-center">
               <ShareButton text={shareText} gameName="Connections" resultLine={`${state.won ? '✅' : '❌'} ${TODAY}`} />
             </div>
           </div>

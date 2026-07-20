@@ -139,7 +139,7 @@ export function CrosswordGame({ onBack }: { onBack: () => void }) {
   }, [selected, state, solution, setSaved, completeGame]);
 
   function getCellClass(r: number, c: number): string {
-    if (isBlack(r, c)) return 'bg-black border-black';
+    if (isBlack(r, c)) return '';
     const isSel = selected?.[0] === r && selected?.[1] === c;
     const val = state.userGrid[r]?.[c];
     const sol = solution[r]?.[c];
@@ -150,12 +150,27 @@ export function CrosswordGame({ onBack }: { onBack: () => void }) {
       return c === col && r >= row && r < row + word.length;
     })();
 
-    if (isSel) return 'bg-blue-500 text-black';
-    if (inWord) return 'bg-blue-100 text-black';
-    if (val && val === sol) return 'bg-green-100 text-black';
-    if (val && val !== sol) return 'bg-red-100 text-black';
-    return 'bg-white text-black';
+    if (isSel) return 'sel-cell';
+    if (inWord) return 'word-cell';
+    if (val && val === sol) return 'correct-cell';
+    if (val && val !== sol) return 'wrong-cell';
+    return 'empty-cell';
   }
+
+  const cellBg: Record<string, string> = {
+    'sel-cell':     '#f59e0b',
+    'word-cell':    'rgba(245,158,11,0.18)',
+    'correct-cell': 'rgba(52,211,153,0.25)',
+    'wrong-cell':   'rgba(248,113,113,0.25)',
+    'empty-cell':   'rgba(255,255,255,0.92)',
+  };
+  const cellColor: Record<string, string> = {
+    'sel-cell':     '#1a0a00',
+    'word-cell':    '#fff',
+    'correct-cell': '#fff',
+    'wrong-cell':   '#fff',
+    'empty-cell':   '#1a0a00',
+  };
 
   const across = useMemo(() => entries.filter(e => e.direction === 'across').sort((a, b) => a.number - b.number), [entries]);
   const down   = useMemo(() => entries.filter(e => e.direction === 'down').sort((a, b) => a.number - b.number), [entries]);
@@ -186,65 +201,65 @@ export function CrosswordGame({ onBack }: { onBack: () => void }) {
   };
 
   return (
-    <div className="min-h-screen bg-[#111] text-white flex flex-col">
+    <div className="min-h-screen text-white flex flex-col" style={{ background: 'linear-gradient(160deg, #14100a 0%, #1e1408 60%, #0d0a05 100%)' }}>
       {state.won && <Confetti />}
-      <input
-        ref={inputRef}
-        className="absolute opacity-0 w-0 h-0 pointer-events-none"
-        onKeyDown={handleKey}
-        readOnly
-        inputMode="text"
-      />
+      <div style={{ height: 3, background: 'linear-gradient(90deg, #d97706, #f59e0b, #d97706)' }} />
+      <input ref={inputRef} className="absolute opacity-0 w-0 h-0 pointer-events-none" onKeyDown={handleKey} readOnly inputMode="text" />
 
-      <header className="border-b border-white/10 flex items-center justify-between px-4 py-3">
-        <button onClick={onBack} className="text-gray-400 hover:text-white p-1"><ArrowLeft size={20} /></button>
+      <header className="flex items-center justify-between px-4 py-3" style={{ borderBottom: '1px solid rgba(245,158,11,0.2)' }}>
+        <button onClick={onBack} className="text-slate-400 hover:text-white p-1"><ArrowLeft size={20} /></button>
         <div className="text-center">
-          <h1 className="font-bold text-base">IOL Crossword</h1>
-          <p className="text-gray-500 text-xs">{TODAY}</p>
+          <h1 className="font-bold text-base tracking-wide" style={{ color: '#fbbf24' }}>IOL Crossword</h1>
+          <p className="text-slate-500 text-xs">{TODAY}</p>
         </div>
         <div className="w-8" />
       </header>
 
-      {/* Win banner */}
       {state.won && (
-        <div className="bounce-in mx-4 mt-3 bg-green-500/10 border border-green-500/30 rounded-xl p-3 flex items-center justify-between">
+        <div className="bounce-in mx-4 mt-3 rounded-xl p-3 flex items-center justify-between"
+          style={{ background: 'rgba(52,211,153,0.1)', border: '1px solid rgba(52,211,153,0.3)' }}>
           <div className="flex items-center gap-2">
-            <CheckCircle2 size={20} className="text-green-400" />
-            <span className="text-green-300 font-semibold text-sm">🎉 Puzzle solved!</span>
+            <CheckCircle2 size={20} style={{ color: '#34d399' }} />
+            <span className="font-semibold text-sm" style={{ color: '#6ee7b7' }}>🎉 Puzzle solved!</span>
           </div>
           <ShareButton text={shareText} gameName="Crossword" resultLine={`Solved ${TODAY}`} />
         </div>
       )}
 
-      {/* Main layout: grid left, clues right */}
       <div className="flex flex-1 overflow-hidden">
         {/* Left: grid + active clue + keyboard */}
         <div className="flex flex-col items-center gap-2 px-2 py-3 overflow-y-auto flex-1">
           {/* Grid */}
-          <div
-            className="border border-white/20 flex-shrink-0"
-            style={{ display: 'grid', gridTemplateColumns: `repeat(${GRID_SIZE}, ${cellPx}px)` }}
-          >
+          <div className="flex-shrink-0 rounded-lg overflow-hidden"
+            style={{ display: 'grid', gridTemplateColumns: `repeat(${GRID_SIZE}, ${cellPx}px)`, border: '2px solid rgba(245,158,11,0.3)', boxShadow: '0 0 30px rgba(245,158,11,0.1)' }}>
             {Array.from({ length: GRID_SIZE }).map((_, r) =>
               Array.from({ length: GRID_SIZE }).map((_, c) => {
                 const num = numberMap.get(`${r},${c}`);
                 const val = state.userGrid[r]?.[c] ?? '';
                 const black = isBlack(r, c);
+                const cls = getCellClass(r, c);
                 return (
                   <button
                     key={`${r}-${c}`}
                     onClick={() => selectCell(r, c)}
                     disabled={black}
-                    style={{ width: cellPx, height: cellPx }}
-                    className={`relative flex items-center justify-center border border-black/20 transition-colors ${getCellClass(r, c)}`}
+                    style={{
+                      width: cellPx, height: cellPx,
+                      background: black ? '#1a1208' : cellBg[cls] ?? '#fff',
+                      color: black ? 'transparent' : cellColor[cls] ?? '#000',
+                      border: '1px solid rgba(245,158,11,0.15)',
+                      transition: 'background 0.1s ease',
+                    }}
+                    className="relative flex items-center justify-center"
                   >
                     {!black && num != null && (
-                      <span className="absolute top-0 left-0 text-[5px] leading-none text-black/50 px-px pt-px font-normal">
+                      <span className="absolute top-0 left-0 leading-none px-px pt-px font-normal"
+                        style={{ fontSize: 5, color: cls === 'sel-cell' ? 'rgba(0,0,0,0.5)' : 'rgba(0,0,0,0.4)' }}>
                         {num}
                       </span>
                     )}
                     {!black && val && (
-                      <span style={{ fontSize: Math.max(cellPx * 0.5, 7) }} className="font-bold uppercase leading-none">
+                      <span style={{ fontSize: Math.max(cellPx * 0.5, 7) }} className="font-black uppercase leading-none">
                         {val}
                       </span>
                     )}
@@ -256,28 +271,25 @@ export function CrosswordGame({ onBack }: { onBack: () => void }) {
 
           {/* Active clue bar */}
           {activeEntry && (
-            <div className="w-full max-w-xs bg-blue-500/10 border border-blue-500/20 rounded-lg px-3 py-2">
-              <span className="text-[10px] text-blue-300 mr-1.5 font-semibold uppercase">
+            <div className="w-full max-w-xs rounded-xl px-3 py-2"
+              style={{ background: 'rgba(245,158,11,0.1)', border: '1px solid rgba(245,158,11,0.25)' }}>
+              <span className="text-[10px] mr-1.5 font-bold uppercase" style={{ color: '#fbbf24' }}>
                 {activeEntry.number} {activeEntry.direction}
               </span>
-              <span className="text-white text-xs">{activeEntry.clue}</span>
+              <span className="text-slate-200 text-xs">{activeEntry.clue}</span>
             </div>
           )}
 
-          {/* On-screen keyboard */}
+          {/* Keyboard */}
           {selected && (
             <div className="w-full max-w-xs">
               {(['QWERTYUIOP'.split(''), 'ASDFGHJKL'.split(''), [...'ZXCVBNM'.split(''), '⌫']] as string[][]).map((row, ri) => (
                 <div key={ri} className="flex justify-center gap-0.5 mb-0.5">
                   {row.map(letter => (
-                    <button
-                      key={letter}
-                      onClick={() => {
-                        const e = { key: letter === '⌫' ? 'BACKSPACE' : letter, preventDefault: () => {} } as unknown as React.KeyboardEvent;
-                        handleKey(e);
-                      }}
-                      className={`${letter === '⌫' ? 'w-8' : 'w-6'} h-8 rounded bg-white/10 hover:bg-white/20 text-white text-[10px] font-bold uppercase transition-colors`}
-                    >
+                    <button key={letter}
+                      onClick={() => { const e = { key: letter === '⌫' ? 'BACKSPACE' : letter, preventDefault: () => {} } as unknown as React.KeyboardEvent; handleKey(e); }}
+                      className={`${letter === '⌫' ? 'w-8' : 'w-6'} h-8 rounded-lg text-[10px] font-bold uppercase transition-all active:scale-95`}
+                      style={{ background: 'rgba(245,158,11,0.12)', border: '1px solid rgba(245,158,11,0.2)', color: '#e2e8f0' }}>
                       {letter}
                     </button>
                   ))}
@@ -285,17 +297,14 @@ export function CrosswordGame({ onBack }: { onBack: () => void }) {
               ))}
             </div>
           )}
-
-          {!selected && <p className="text-gray-600 text-xs">Tap a white cell to start</p>}
+          {!selected && <p className="text-xs" style={{ color: 'rgba(245,158,11,0.4)' }}>Tap a white cell to start</p>}
         </div>
 
-        {/* Right: clue panel (always visible) */}
-        <div
-          className="w-44 flex-shrink-0 border-l border-white/10 overflow-y-auto py-3 px-2 flex flex-col gap-3 slide-in-right"
-          style={{ fontSize: 11 }}
-        >
+        {/* Right: clue panel */}
+        <div className="w-44 flex-shrink-0 overflow-y-auto py-3 px-2 flex flex-col gap-3 slide-in-right"
+          style={{ borderLeft: '1px solid rgba(245,158,11,0.15)', fontSize: 11 }}>
           <ClueList dir="across" />
-          <div className="border-t border-white/10 pt-2">
+          <div className="pt-2" style={{ borderTop: '1px solid rgba(245,158,11,0.15)' }}>
             <ClueList dir="down" />
           </div>
         </div>

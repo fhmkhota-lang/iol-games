@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { ArrowLeft, RotateCcw, CheckCircle2 } from 'lucide-react';
 import { Confetti } from '../ui/Confetti';
 import { getTodayString } from '../../utils/seed';
@@ -112,7 +112,7 @@ export function SudokuGame({ onBack }: { onBack: () => void }) {
     setSelected(null);
   }
 
-  function getCellStyle(r: number, c: number) {
+  function getCellStyle(r: number, c: number): React.CSSProperties {
     const val = state.grid[r][c];
     const isLocked = PUZZLE[r][c] !== 0;
     const isSel = selected?.[0] === r && selected?.[1] === c;
@@ -123,49 +123,54 @@ export function SudokuGame({ onBack }: { onBack: () => void }) {
     const isError = val !== 0 && !isLocked && !isCellValid(state.grid, r, c);
     const isCorrect = val !== 0 && !isLocked && SOLUTION[r]?.[c] === val;
 
-    if (isSel) return 'bg-blue-600 text-white';
-    if (isError) return 'bg-red-500/20 text-red-400';
-    if (isRelated) return 'bg-white/5 text-white';
-    if (isLocked) return 'bg-transparent text-white font-bold';
-    if (isCorrect) return 'bg-transparent text-blue-400';
-    return 'bg-transparent text-gray-300';
+    if (isSel) return { background: 'rgba(20,184,166,0.35)', color: '#fff', fontWeight: 700 };
+    if (isError) return { background: 'rgba(239,68,68,0.18)', color: '#f87171' };
+    if (isRelated) return { background: 'rgba(20,184,166,0.07)', color: '#e2e8f0' };
+    if (isLocked) return { background: 'transparent', color: '#f1f5f9', fontWeight: 800 };
+    if (isCorrect) return { background: 'transparent', color: '#2dd4bf' };
+    return { background: 'transparent', color: '#94a3b8' };
   }
 
   const shareText = buildSudokuShare(TODAY, displayTime, state.won);
 
   return (
-    <div className="min-h-screen bg-[#111] text-white flex flex-col">
+    <div className="min-h-screen text-white flex flex-col" style={{ background: 'linear-gradient(160deg, #061622 0%, #0d2137 60%, #0a1e2e 100%)' }}>
       {state.won && <Confetti />}
-      <header className="border-b border-white/10 flex items-center justify-between px-4 py-3">
-        <button onClick={onBack} className="text-gray-400 hover:text-white p-1"><ArrowLeft size={20} /></button>
+      <div style={{ height: 3, background: 'linear-gradient(90deg, #0d9488, #14b8a6, #0d9488)' }} />
+
+      <header className="flex items-center justify-between px-4 py-3" style={{ borderBottom: '1px solid rgba(20,184,166,0.2)' }}>
+        <button onClick={onBack} className="text-slate-400 hover:text-white p-1"><ArrowLeft size={20} /></button>
         <div className="text-center">
-          <h1 className="font-bold text-base">IOL Sudoku</h1>
-          <p className="text-white/60 text-sm font-mono">{mins}:{secs}</p>
+          <h1 className="font-bold text-base tracking-wide" style={{ color: '#2dd4bf' }}>IOL Sudoku</h1>
+          <p className="text-slate-400 text-sm font-mono">{mins}:{secs}</p>
         </div>
-        <button onClick={reset} className="text-gray-400 hover:text-white p-1"><RotateCcw size={18} /></button>
+        <button onClick={reset} className="text-slate-400 hover:text-white p-1"><RotateCcw size={18} /></button>
       </header>
 
       {state.won && (
-        <div className="bounce-in mx-4 mt-4 bg-green-500/10 border border-green-500/30 rounded-xl p-3 flex items-center justify-between">
+        <div className="bounce-in mx-4 mt-4 rounded-xl p-3 flex items-center justify-between" style={{ background: 'rgba(20,184,166,0.12)', border: '1px solid rgba(20,184,166,0.3)' }}>
           <div className="flex items-center gap-2">
-            <CheckCircle2 size={20} className="text-green-400" />
-            <span className="text-green-300 font-semibold text-sm">Solved in {mins}:{secs}!</span>
+            <CheckCircle2 size={20} style={{ color: '#2dd4bf' }} />
+            <span className="font-semibold text-sm" style={{ color: '#5eead4' }}>🎉 Solved in {mins}:{secs}!</span>
           </div>
           <ShareButton text={shareText} gameName="Sudoku" resultLine={`Solved ${TODAY} in ${mins}:${secs}`} />
         </div>
       )}
 
       <div className="flex-1 flex items-center justify-center py-4 px-4">
-        <div className="inline-block border-2 border-white/40 rounded">
+        <div className="rounded-xl overflow-hidden" style={{ border: '2px solid rgba(20,184,166,0.4)', boxShadow: '0 0 40px rgba(20,184,166,0.15)' }}>
           {state.grid.map((row, r) => (
-            <div key={r} className={`flex ${r % 3 === 0 && r !== 0 ? 'border-t-2 border-white/40' : ''}`}>
+            <div key={r} className="flex" style={{ borderTop: r % 3 === 0 && r !== 0 ? '2px solid rgba(20,184,166,0.5)' : undefined }}>
               {row.map((val, c) => (
                 <button
                   key={c}
                   onClick={() => setSelected([r, c])}
-                  className={`w-9 h-9 sm:w-10 sm:h-10 text-sm flex items-center justify-center border border-white/10 transition-colors
-                    ${c % 3 === 0 && c !== 0 ? 'border-l-2 border-l-white/40' : ''}
-                    ${getCellStyle(r, c)}`}
+                  className="w-9 h-9 sm:w-10 sm:h-10 text-sm flex items-center justify-center transition-all active:scale-95"
+                  style={{
+                    borderRight: c % 3 === 2 && c !== 8 ? '2px solid rgba(20,184,166,0.5)' : '1px solid rgba(255,255,255,0.06)',
+                    borderBottom: '1px solid rgba(255,255,255,0.06)',
+                    ...getCellStyle(r, c),
+                  }}
                 >
                   {val !== 0 ? val : ''}
                 </button>
@@ -175,24 +180,28 @@ export function SudokuGame({ onBack }: { onBack: () => void }) {
         </div>
       </div>
 
-      <div className="text-center pb-2">
-        <p className="text-xs text-gray-500">Mistakes: {state.mistakes}</p>
+      <div className="text-center pb-1">
+        <p className="text-xs" style={{ color: state.mistakes > 0 ? '#f87171' : '#475569' }}>
+          {state.mistakes > 0 ? `${state.mistakes} mistake${state.mistakes > 1 ? 's' : ''}` : 'No mistakes yet'}
+        </p>
       </div>
 
-      <div className="pb-6 px-4">
+      <div className="pb-6 px-4 pt-2">
         <div className="flex justify-center gap-2 flex-wrap max-w-xs mx-auto">
           {[1,2,3,4,5,6,7,8,9].map((n) => (
             <button
               key={n}
               onClick={() => fillCell(n)}
-              className="w-12 h-12 bg-[#2a2a2a] hover:bg-[#3a3a3a] text-white font-bold rounded-lg text-lg transition-colors"
+              className="w-12 h-12 font-bold rounded-xl text-lg transition-all active:scale-90 hover:scale-105"
+              style={{ background: 'rgba(20,184,166,0.12)', border: '1px solid rgba(20,184,166,0.25)', color: '#e2e8f0', boxShadow: '0 2px 8px rgba(0,0,0,0.3)' }}
             >
               {n}
             </button>
           ))}
           <button
             onClick={eraseCell}
-            className="w-12 h-12 bg-[#2a2a2a] hover:bg-[#3a3a3a] text-gray-400 rounded-lg text-xs transition-colors"
+            className="w-12 h-12 rounded-xl text-xs transition-all active:scale-90"
+            style={{ background: 'rgba(239,68,68,0.1)', border: '1px solid rgba(239,68,68,0.2)', color: '#f87171' }}
           >
             Erase
           </button>
