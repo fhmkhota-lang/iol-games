@@ -131,3 +131,40 @@ body::before {
 .rule-animate {
   animation: rule-draw 0.8s cubic-bezier(0.16,1,0.3,1) both;
 }
+
+/* ─── Confetti ───────────────────────────────────────────────── */
+@keyframes confetti-fall {
+  0%   { transform: translateY(-10px) rotate(0deg) scale(1); opacity: 1; }
+  80%  { opacity: 1; }
+  100% { transform: translateY(100vh) rotate(720deg) scale(0.5); opacity: 0; }
+}
+@keyframes confetti-sway {
+  0%,100% { margin-left: 0; }
+  25%      { margin-left: 20px; }
+  75%      { margin-left: -20px; }
+}
+.confetti-piece {
+  position: fixed;
+  top: -20px;
+  width: 10px;
+  height: 10px;
+  border-radius: 2px;
+  animation: confetti-fall linear forwards, confetti-sway ease-in-out infinite;
+  z-index: 9000;
+  pointer-events: none;
+}
+
+/* ─── Tile flip ──────────────────────────────────────────────── */
+@keyframes tile-pop {
+  0%   { transform: scale(1); }
+  40%  { transform: scale(1.12); }
+  100% { transform: scale(1); }
+}
+.tile-pop { animation: tile-pop 0.18s ease; }
+
+/* ─── Slide-in from right ────────────────────────────────────── */
+@keyframes slide-in-right {
+  from { opacity: 0; transform: translateX(18px); }
+  to   { opacity: 1; transform: translateX(0); }
+}
+.slide-in-right { animation: slide-in-right 0.35s cubic-bezier(0.16,1,0.3,1) both; }

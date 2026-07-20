@@ -1,5 +1,6 @@
 import { useState, useEffect, useRef, useCallback } from 'react';
-import { ArrowLeft, CheckCircle2, X } from 'lucide-react';
+import { ArrowLeft, CheckCircle2, X, Eye } from 'lucide-react';
+import { Confetti } from '../ui/Confetti';
 import { getTodayString, dateToSeed, createRng } from '../../utils/seed';
 import { useLocalStorage } from '../../hooks/useLocalStorage';
 import { useGameStore } from '../../hooks/useGameStore';
@@ -42,6 +43,8 @@ export function TilesGame({ onBack }: { onBack: () => void }) {
   const [errors, setErrors] = useState(0);
   const [startMs, setStartMs] = useState<number>(0);
   const [elapsed, setElapsed] = useState(0);
+  const [peeksLeft, setPeeksLeft] = useState(2);
+  const [peeking, setPeeking] = useState(false);
   const timerRef = useRef<ReturnType<typeof setInterval> | null>(null);
   // Use a ref for timeouts so StrictMode double-invoke can't fire them twice
   const showTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -81,7 +84,16 @@ export function TilesGame({ onBack }: { onBack: () => void }) {
     setRound(0);
     setScore(0);
     setErrors(0);
+    setPeeksLeft(2);
+    setPeeking(false);
     beginRound(0);
+  }
+
+  function usePeek() {
+    if (peeksLeft <= 0 || peeking || phase !== 'answering') return;
+    setPeeksLeft(n => n - 1);
+    setPeeking(true);
+    setTimeout(() => setPeeking(false), SHOW_MS);
   }
 
   function paintCell(idx: number) {
@@ -128,7 +140,7 @@ export function TilesGame({ onBack }: { onBack: () => void }) {
   const shareText = buildTilesShare(TODAY, state.score, state.timeMs);
   const allCorrect = userPattern.every((v, i) => v === pattern[i]);
 
-  const displayPattern = phase === 'showing' ? pattern : phase === 'answering' || phase === 'feedback' ? userPattern : pattern;
+  const displayPattern = phase === 'showing' || peeking ? pattern : phase === 'answering' || phase === 'feedback' ? userPattern : pattern;
 
   return (
     <div className="min-h-screen bg-[#111] text-white flex flex-col">
@@ -195,32 +207,49 @@ export function TilesGame({ onBack }: { onBack: () => void }) {
                     <button
                       key={i}
                       onClick={() => setSelectedColor(i)}
-                      className={`w-10 h-10 rounded-lg transition-all ${selectedColor === i ? 'ring-2 ring-white scale-110' : ''}`}
+                      className={`w-10 h-10 rounded-lg transition-all ${selectedColor === i ? 'ring-2 ring-white scale-110' : 'opacity-80 hover:opacity-100'}`}
                       style={{ backgroundColor: color }}
                     />
                   ))}
                 </div>
-                <button
-                  onClick={submitRound}
-                  className="bg-white text-black font-semibold px-8 py-2.5 rounded-xl hover:bg-gray-100 transition-colors"
-                >
-                  Submit round
-                </button>
+                <div className="flex items-center gap-3">
+                  <button
+                    onClick={usePeek}
+                    disabled={peeksLeft <= 0 || peeking}
+                    className="flex items-center gap-1.5 px-4 py-2 rounded-lg text-sm font-semibold transition-all disabled:opacity-30"
+                    style={{ background: peeking ? '#CA8A04' : 'rgba(255,255,255,0.12)', color: peeking ? '#fff' : '#fff' }}
+                  >
+                    <Eye size={14} />
+                    Peek ({peeksLeft} left)
+                  </button>
+                  <button
+                    onClick={submitRound}
+                    className="bg-white text-black font-semibold px-8 py-2.5 rounded-xl hover:bg-gray-100 transition-colors"
+                  >
+                    Submit
+                  </button>
+                </div>
               </>
             )}
           </>
         )}
 
         {phase === 'done' && (
-          <div className="flex-1 flex flex-col items-center justify-center text-center gap-4">
-            {state.won
-              ? <CheckCircle2 size={48} className="text-green-400" />
-              : <X size={48} className="text-red-400" />}
-            <h2 className="text-2xl font-bold">{state.won ? 'Well done!' : 'Keep practising!'}</h2>
-            <p className="text-gray-400">Score: <span className="text-white font-bold text-xl">{state.score}</span>/100</p>
-            <p className="text-gray-500 text-sm">Time: {(state.timeMs / 1000).toFixed(1)}s</p>
-            <ShareButton text={shareText} gameName="Tiles" resultLine={`Score: ${state.score}/100 — ${TODAY}`} />
-          </div>
+          <>
+            {state.won && <Confetti />}
+            <div className="flex-1 flex flex-col items-center justify-center text-center gap-4 bounce-in">
+              {state.won
+                ? <CheckCircle2 size={56} className="text-green-400" style={{ filter: 'drop-shadow(0 0 16px rgba(74,222,128,0.6))' }} />
+                : <X size={56} className="text-red-400" />}
+              <h2 className="text-2xl font-bold">{state.won ? '🎉 Well done!' : 'Keep practising!'}</h2>
+              <div className="px-6 py-3 rounded-xl" style={{ background: 'rgba(255,255,255,0.07)', border: '1px solid rgba(255,255,255,0.1)' }}>
+                <p className="text-gray-400 text-sm">Score</p>
+                <p className="text-white font-bold text-4xl">{state.score}<span className="text-gray-500 text-xl">/100</span></p>
+                <p className="text-gray-500 text-sm mt-1">Time: {(state.timeMs / 1000).toFixed(1)}s</p>
+              </div>
+              <ShareButton text={shareText} gameName="Tiles" resultLine={`Score: ${state.score}/100 — ${TODAY}`} />
+            </div>
+          </>
         )}
       </main>
     </div>

@@ -1,5 +1,6 @@
 import { useState, useMemo, useEffect } from 'react';
-import { ArrowLeft, CheckCircle2, X } from 'lucide-react';
+import { ArrowLeft, CheckCircle2, X, Lightbulb } from 'lucide-react';
+import { Confetti } from '../ui/Confetti';
 import { getTodayString, dateToSeed, seededShuffle } from '../../utils/seed';
 import { CONNECTIONS_PUZZLES } from '../../data/connectionsData';
 import { useLocalStorage } from '../../hooks/useLocalStorage';
@@ -52,13 +53,15 @@ const COLOR_MAP: Record<ConnectionsCategory['color'], string> = {
   purple: 'bg-purple-600',
 };
 
-const LIVES = 4;
+const LIVES = 6;
 
 export function ConnectionsGame({ onBack }: { onBack: () => void }) {
   const [saved, setSaved] = useLocalStorage<SavedState>('iol_connections_state', DEFAULT);
   const { completeGame } = useGameStore();
   const [selected, setSelected] = useState<string[]>([]);
   const [wrongAnim, setWrongAnim] = useState(false);
+  const [hintsLeft, setHintsLeft] = useState(2);
+  const [hintWord, setHintWord] = useState<string | null>(null);
 
   const state = saved.date === TODAY ? saved : DEFAULT;
   const puzzle = state.puzzle;
@@ -132,8 +135,22 @@ export function ConnectionsGame({ onBack }: { onBack: () => void }) {
   const livesRemaining = LIVES - mistakes;
   const shareText = buildConnectionsShare(TODAY, state.attempts, state.won, state.solvedOrder);
 
+  function useHint() {
+    if (hintsLeft <= 0 || state.gameOver) return;
+    const unsolvedCats = puzzle.filter(c => !state.solved.includes(c.label));
+    if (unsolvedCats.length === 0) return;
+    const cat = unsolvedCats[0];
+    const unselected = cat.words.filter(w => !selected.includes(w));
+    if (unselected.length === 0) return;
+    const word = unselected[Math.floor(Math.random() * unselected.length)];
+    setHintWord(word);
+    setHintsLeft(n => n - 1);
+    setTimeout(() => setHintWord(null), 3000);
+  }
+
   return (
     <div className="min-h-screen bg-[#111] text-white flex flex-col">
+      {state.gameOver && state.won && <Confetti />}
       <header className="border-b border-white/10 flex items-center justify-between px-4 py-3">
         <button onClick={onBack} className="text-gray-400 hover:text-white p-1"><ArrowLeft size={20} /></button>
         <div className="text-center">
@@ -150,13 +167,19 @@ export function ConnectionsGame({ onBack }: { onBack: () => void }) {
             {Array.from({ length: LIVES }).map((_, i) => (
               <div
                 key={i}
-                className={`w-4 h-4 rounded-full transition-colors ${
+                className={`w-3.5 h-3.5 rounded-full transition-colors ${
                   i < livesRemaining ? 'bg-iol-red' : 'bg-white/10'
                 }`}
               />
             ))}
           </div>
         </div>
+
+        {hintWord && (
+          <div className="bounce-in text-center text-sm py-2 px-4 rounded-lg" style={{ background: 'rgba(202,138,4,0.15)', border: '1px solid rgba(202,138,4,0.4)', color: '#FCD34D' }}>
+            💡 <strong>{hintWord}</strong> belongs in one of the unsolved categories
+          </div>
+        )}
 
         {state.solved.map((label) => {
           const cat = puzzle.find((c) => c.label === label)!;
@@ -173,12 +196,13 @@ export function ConnectionsGame({ onBack }: { onBack: () => void }) {
           <div className={`grid grid-cols-4 gap-2 ${wrongAnim ? 'shake' : ''}`}>
             {shuffledWords.map((word) => {
               const isSel = selected.includes(word);
+              const isHinted = word === hintWord;
               return (
                 <button
                   key={word}
                   onClick={() => toggle(word)}
                   className={`py-3 px-1 rounded-xl text-xs sm:text-sm font-bold uppercase text-center transition-all active:scale-95 ${
-                    isSel ? 'bg-white text-black' : 'bg-[#2a2a2a] text-white hover:bg-[#3a3a3a]'
+                    isSel ? 'bg-white text-black' : isHinted ? 'bg-yellow-500/30 text-yellow-200 ring-1 ring-yellow-400' : 'bg-[#2a2a2a] text-white hover:bg-[#3a3a3a]'
                   }`}
                 >
                   {word}
@@ -189,12 +213,21 @@ export function ConnectionsGame({ onBack }: { onBack: () => void }) {
         )}
 
         {!state.gameOver && (
-          <div className="flex gap-2 justify-center">
+          <div className="flex gap-2 justify-center flex-wrap">
             <button
               onClick={() => setSelected([])}
-              className="px-5 py-2 border border-white/20 rounded-lg text-sm text-gray-300 hover:bg-white/5 transition-colors"
+              className="px-4 py-2 border border-white/20 rounded-lg text-sm text-gray-300 hover:bg-white/5 transition-colors"
             >
               Deselect all
+            </button>
+            <button
+              onClick={useHint}
+              disabled={hintsLeft <= 0}
+              className="flex items-center gap-1.5 px-4 py-2 rounded-lg text-sm font-semibold transition-colors disabled:opacity-30"
+              style={{ background: 'rgba(202,138,4,0.2)', color: '#FCD34D', border: '1px solid rgba(202,138,4,0.3)' }}
+            >
+              <Lightbulb size={14} />
+              Hint ({hintsLeft})
             </button>
             <button
               onClick={submit}
@@ -207,12 +240,12 @@ export function ConnectionsGame({ onBack }: { onBack: () => void }) {
         )}
 
         {state.gameOver && (
-          <div className={`rounded-xl p-4 text-center ${state.won ? 'bg-green-500/10 border border-green-500/30' : 'bg-red-500/10 border border-red-500/30'}`}>
+          <div className={`rounded-xl p-4 text-center bounce-in ${state.won ? 'bg-green-500/10 border border-green-500/30' : 'bg-red-500/10 border border-red-500/30'}`}>
             <div className="flex items-center justify-center gap-2 mb-2">
               {state.won
                 ? <CheckCircle2 size={20} className="text-green-400" />
                 : <X size={20} className="text-red-400" />}
-              <span className="font-bold">{state.won ? 'Connections found!' : 'Better luck tomorrow'}</span>
+              <span className="font-bold">{state.won ? '🎉 Connections found!' : 'Better luck tomorrow'}</span>
             </div>
             {!state.won && (
               <div className="mt-2 space-y-1">
@@ -221,8 +254,8 @@ export function ConnectionsGame({ onBack }: { onBack: () => void }) {
                 ))}
               </div>
             )}
-            <div className="mt-3">
-              <ShareButton text={shareText} gameName="Connections" resultLine={`${state.won ? '✅' : '❌'} ${TODAY}`} emojiGrid={state.solvedOrder.join('\n')} />
+            <div className="mt-3 flex justify-center">
+              <ShareButton text={shareText} gameName="Connections" resultLine={`${state.won ? '✅' : '❌'} ${TODAY}`} />
             </div>
           </div>
         )}

@@ -1,5 +1,6 @@
 import { useState, useMemo, useRef, useEffect, useCallback } from 'react';
-import { ArrowLeft, HelpCircle, CheckCircle2 } from 'lucide-react';
+import { ArrowLeft, CheckCircle2 } from 'lucide-react';
+import { Confetti } from '../ui/Confetti';
 import { getTodayString, dateToSeed, createRng } from '../../utils/seed';
 import { CROSSWORD_WORDS } from '../../data/crosswordWords';
 import { generateCrossword } from '../../utils/crosswordGenerator';
@@ -32,7 +33,7 @@ export function CrosswordGame({ onBack }: { onBack: () => void }) {
   const { completeGame } = useGameStore();
   const [selected, setSelected] = useState<[number, number] | null>(null);
   const [direction, setDirection] = useState<'across' | 'down'>('across');
-  const [showClues, setShowClues] = useState(false);
+
   const inputRef = useRef<HTMLInputElement>(null);
 
   const state = saved.date === TODAY ? saved : DEFAULT;
@@ -160,10 +161,33 @@ export function CrosswordGame({ onBack }: { onBack: () => void }) {
   const down   = useMemo(() => entries.filter(e => e.direction === 'down').sort((a, b) => a.number - b.number), [entries]);
 
   const shareText = `IOL Crossword ${TODAY}\n${state.won ? '✅ Solved!' : '🔲 In progress'}\n\nPlay at iol.co.za/games`;
-  const cellPx = Math.max(20, Math.min(32, Math.floor((Math.min(window.innerWidth, 500) - 32) / GRID_SIZE)));
+  const cellPx = Math.max(18, Math.min(28, Math.floor((Math.min(window.innerWidth * 0.55, 360) - 16) / GRID_SIZE)));
+
+  const ClueList = ({ dir }: { dir: 'across' | 'down' }) => {
+    const list = dir === 'across' ? across : down;
+    return (
+      <div>
+        <p className="font-bold text-gray-300 mb-1.5 text-[10px] uppercase tracking-widest">{dir}</p>
+        {list.map(entry => (
+          <button
+            key={`${entry.number}${dir[0]}`}
+            onClick={() => { setSelected([entry.row, entry.col]); setDirection(dir); }}
+            className={`text-left w-full mb-1 text-[11px] leading-tight transition-colors rounded px-1 py-0.5 ${
+              activeEntry?.number === entry.number && direction === dir
+                ? 'text-blue-300 bg-blue-500/10'
+                : 'text-gray-400 hover:text-white'
+            }`}
+          >
+            <span className="text-white font-semibold">{entry.number}. </span>{entry.clue}
+          </button>
+        ))}
+      </div>
+    );
+  };
 
   return (
     <div className="min-h-screen bg-[#111] text-white flex flex-col">
+      {state.won && <Confetti />}
       <input
         ref={inputRef}
         className="absolute opacity-0 w-0 h-0 pointer-events-none"
@@ -178,122 +202,104 @@ export function CrosswordGame({ onBack }: { onBack: () => void }) {
           <h1 className="font-bold text-base">IOL Crossword</h1>
           <p className="text-gray-500 text-xs">{TODAY}</p>
         </div>
-        <button onClick={() => setShowClues(v => !v)} className="text-gray-400 hover:text-white p-1">
-          <HelpCircle size={20} />
-        </button>
+        <div className="w-8" />
       </header>
 
-      <main className="flex-1 max-w-lg mx-auto w-full px-4 py-3 flex flex-col items-center gap-3 overflow-y-auto">
-        {state.won && (
-          <div className="bounce-in w-full bg-green-500/10 border border-green-500/30 rounded-xl p-3 flex items-center justify-between">
-            <div className="flex items-center gap-2">
-              <CheckCircle2 size={20} className="text-green-400" />
-              <span className="text-green-300 font-semibold text-sm">Puzzle solved!</span>
-            </div>
-            <ShareButton text={shareText} gameName="Crossword" resultLine={`Solved ${TODAY}`} />
+      {/* Win banner */}
+      {state.won && (
+        <div className="bounce-in mx-4 mt-3 bg-green-500/10 border border-green-500/30 rounded-xl p-3 flex items-center justify-between">
+          <div className="flex items-center gap-2">
+            <CheckCircle2 size={20} className="text-green-400" />
+            <span className="text-green-300 font-semibold text-sm">🎉 Puzzle solved!</span>
           </div>
-        )}
+          <ShareButton text={shareText} gameName="Crossword" resultLine={`Solved ${TODAY}`} />
+        </div>
+      )}
 
-        {/* Grid */}
-        <div
-          className="border border-white/20"
-          style={{ display: 'grid', gridTemplateColumns: `repeat(${GRID_SIZE}, ${cellPx}px)` }}
-        >
-          {Array.from({ length: GRID_SIZE }).map((_, r) =>
-            Array.from({ length: GRID_SIZE }).map((_, c) => {
-              const num = numberMap.get(`${r},${c}`);
-              const val = state.userGrid[r]?.[c] ?? '';
-              const black = isBlack(r, c);
-              return (
-                <button
-                  key={`${r}-${c}`}
-                  onClick={() => selectCell(r, c)}
-                  disabled={black}
-                  style={{ width: cellPx, height: cellPx }}
-                  className={`relative flex items-center justify-center border border-black/20 transition-colors ${getCellClass(r, c)}`}
-                >
-                  {!black && num != null && (
-                    <span className="absolute top-0 left-0 text-[5px] leading-none text-black/50 px-px pt-px font-normal">
-                      {num}
-                    </span>
-                  )}
-                  {!black && val && (
-                    <span style={{ fontSize: Math.max(cellPx * 0.5, 8) }} className="font-bold uppercase leading-none">
-                      {val}
-                    </span>
-                  )}
-                </button>
-              );
-            })
+      {/* Main layout: grid left, clues right */}
+      <div className="flex flex-1 overflow-hidden">
+        {/* Left: grid + active clue + keyboard */}
+        <div className="flex flex-col items-center gap-2 px-2 py-3 overflow-y-auto flex-1">
+          {/* Grid */}
+          <div
+            className="border border-white/20 flex-shrink-0"
+            style={{ display: 'grid', gridTemplateColumns: `repeat(${GRID_SIZE}, ${cellPx}px)` }}
+          >
+            {Array.from({ length: GRID_SIZE }).map((_, r) =>
+              Array.from({ length: GRID_SIZE }).map((_, c) => {
+                const num = numberMap.get(`${r},${c}`);
+                const val = state.userGrid[r]?.[c] ?? '';
+                const black = isBlack(r, c);
+                return (
+                  <button
+                    key={`${r}-${c}`}
+                    onClick={() => selectCell(r, c)}
+                    disabled={black}
+                    style={{ width: cellPx, height: cellPx }}
+                    className={`relative flex items-center justify-center border border-black/20 transition-colors ${getCellClass(r, c)}`}
+                  >
+                    {!black && num != null && (
+                      <span className="absolute top-0 left-0 text-[5px] leading-none text-black/50 px-px pt-px font-normal">
+                        {num}
+                      </span>
+                    )}
+                    {!black && val && (
+                      <span style={{ fontSize: Math.max(cellPx * 0.5, 7) }} className="font-bold uppercase leading-none">
+                        {val}
+                      </span>
+                    )}
+                  </button>
+                );
+              })
+            )}
+          </div>
+
+          {/* Active clue bar */}
+          {activeEntry && (
+            <div className="w-full max-w-xs bg-blue-500/10 border border-blue-500/20 rounded-lg px-3 py-2">
+              <span className="text-[10px] text-blue-300 mr-1.5 font-semibold uppercase">
+                {activeEntry.number} {activeEntry.direction}
+              </span>
+              <span className="text-white text-xs">{activeEntry.clue}</span>
+            </div>
           )}
+
+          {/* On-screen keyboard */}
+          {selected && (
+            <div className="w-full max-w-xs">
+              {(['QWERTYUIOP'.split(''), 'ASDFGHJKL'.split(''), [...'ZXCVBNM'.split(''), '⌫']] as string[][]).map((row, ri) => (
+                <div key={ri} className="flex justify-center gap-0.5 mb-0.5">
+                  {row.map(letter => (
+                    <button
+                      key={letter}
+                      onClick={() => {
+                        const e = { key: letter === '⌫' ? 'BACKSPACE' : letter, preventDefault: () => {} } as unknown as React.KeyboardEvent;
+                        handleKey(e);
+                      }}
+                      className={`${letter === '⌫' ? 'w-8' : 'w-6'} h-8 rounded bg-white/10 hover:bg-white/20 text-white text-[10px] font-bold uppercase transition-colors`}
+                    >
+                      {letter}
+                    </button>
+                  ))}
+                </div>
+              ))}
+            </div>
+          )}
+
+          {!selected && <p className="text-gray-600 text-xs">Tap a white cell to start</p>}
         </div>
 
-        {/* Active clue bar */}
-        {activeEntry && !showClues && (
-          <div className="w-full bg-white/5 border border-white/10 rounded-xl p-3">
-            <span className="text-xs text-gray-400 mr-2">
-              {activeEntry.number} {activeEntry.direction}:
-            </span>
-            <span className="text-white text-sm">{activeEntry.clue}</span>
+        {/* Right: clue panel (always visible) */}
+        <div
+          className="w-44 flex-shrink-0 border-l border-white/10 overflow-y-auto py-3 px-2 flex flex-col gap-3 slide-in-right"
+          style={{ fontSize: 11 }}
+        >
+          <ClueList dir="across" />
+          <div className="border-t border-white/10 pt-2">
+            <ClueList dir="down" />
           </div>
-        )}
-
-        {/* On-screen keyboard */}
-        {selected && !showClues && (
-          <div className="w-full">
-            {(['QWERTYUIOP'.split(''), 'ASDFGHJKL'.split(''), [...'ZXCVBNM'.split(''), '⌫']] as string[][]).map((row, ri) => (
-              <div key={ri} className="flex justify-center gap-0.5 mb-1">
-                {row.map(letter => (
-                  <button
-                    key={letter}
-                    onClick={() => {
-                      const e = { key: letter === '⌫' ? 'BACKSPACE' : letter, preventDefault: () => {} } as unknown as React.KeyboardEvent;
-                      handleKey(e);
-                    }}
-                    className={`${letter === '⌫' ? 'w-10' : 'w-7'} h-9 rounded bg-white/10 hover:bg-white/20 text-white text-xs font-bold uppercase transition-colors`}
-                  >
-                    {letter}
-                  </button>
-                ))}
-              </div>
-            ))}
-          </div>
-        )}
-
-        {/* Clue list */}
-        {showClues && (
-          <div className="w-full grid grid-cols-2 gap-4 text-sm pb-8">
-            <div>
-              <p className="font-bold text-gray-300 mb-2 text-xs uppercase tracking-wide">Across</p>
-              {across.map(entry => (
-                <button
-                  key={`${entry.number}a`}
-                  onClick={() => { setSelected([entry.row, entry.col]); setDirection('across'); setShowClues(false); }}
-                  className={`text-left w-full mb-1.5 ${activeEntry?.number === entry.number && direction === 'across' ? 'text-blue-400' : 'text-gray-400'} hover:text-white transition-colors`}
-                >
-                  <span className="text-white font-semibold">{entry.number}. </span>{entry.clue}
-                </button>
-              ))}
-            </div>
-            <div>
-              <p className="font-bold text-gray-300 mb-2 text-xs uppercase tracking-wide">Down</p>
-              {down.map(entry => (
-                <button
-                  key={`${entry.number}d`}
-                  onClick={() => { setSelected([entry.row, entry.col]); setDirection('down'); setShowClues(false); }}
-                  className={`text-left w-full mb-1.5 ${activeEntry?.number === entry.number && direction === 'down' ? 'text-blue-400' : 'text-gray-400'} hover:text-white transition-colors`}
-                >
-                  <span className="text-white font-semibold">{entry.number}. </span>{entry.clue}
-                </button>
-              ))}
-            </div>
-          </div>
-        )}
-
-        {!showClues && !selected && (
-          <p className="text-gray-600 text-xs">Tap a white cell to start — ? for all clues</p>
-        )}
-      </main>
+        </div>
+      </div>
     </div>
   );
 }

@@ -1,5 +1,6 @@
 import { useState, useEffect, useRef } from 'react';
 import { ArrowLeft, RotateCcw, CheckCircle2 } from 'lucide-react';
+import { Confetti } from '../ui/Confetti';
 import { getTodayString } from '../../utils/seed';
 import { generateDailySudoku, checkSudoku, isCellValid } from '../../utils/sudoku';
 import { dateToSeed } from '../../utils/seed';
@@ -134,6 +135,7 @@ export function SudokuGame({ onBack }: { onBack: () => void }) {
 
   return (
     <div className="min-h-screen bg-[#111] text-white flex flex-col">
+      {state.won && <Confetti />}
       <header className="border-b border-white/10 flex items-center justify-between px-4 py-3">
         <button onClick={onBack} className="text-gray-400 hover:text-white p-1"><ArrowLeft size={20} /></button>
         <div className="text-center">

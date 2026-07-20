@@ -1,5 +1,6 @@
 import { useState, useEffect, useCallback, useRef } from 'react';
 import { ArrowLeft } from 'lucide-react';
+import { Confetti } from '../ui/Confetti';
 import { getTodayString, dateToSeed } from '../../utils/seed';
 import { WORDLE_WORDS } from '../../data/wordleWords';
 import { useLocalStorage } from '../../hooks/useLocalStorage';
@@ -160,6 +161,7 @@ export function WordleGame({ onBack }: { onBack: () => void }) {
 
   return (
     <div className="min-h-screen bg-[#111] text-white flex flex-col">
+      {state.won && <Confetti />}
       <header className="border-b border-white/10 flex items-center justify-between px-4 py-3">
         <button onClick={onBack} className="text-gray-400 hover:text-white transition-colors p-1">
           <ArrowLeft size={20} />
@@ -206,7 +208,10 @@ export function WordleGame({ onBack }: { onBack: () => void }) {
       </div>
 
       {state.gameOver && (
-        <div className="flex flex-col items-center gap-3 pb-4">
+        <div className="bounce-in flex flex-col items-center gap-3 pb-4 pt-2">
+          <p className={`font-bold text-base ${state.won ? 'text-green-400' : 'text-red-400'}`}>
+            {state.won ? '🎉 Brilliant!' : `The word was ${answer}`}
+          </p>
           <ShareButton
             text={shareText}
             gameName="Wordy"
